@@ -1,0 +1,225 @@
+================================================================================
+  AI ASSISTANT INTEGRER - LISTA COMPLETA DE FUNCIONALIDADES
+================================================================================
+
+1.  SOPORTE MULTI-MODELO (Proveedores de IA)
+    --------------------------------------------------
+    - OpenAI: GPT-4o, GPT-4-turbo, GPT-3.5-turbo y cualquier modelo
+      compatible con la API de OpenAI.
+    - Anthropic: Claude Sonnet 4, Claude Haiku y cualquier modelo
+      compatible con la API de Anthropic.
+    - Ollama: Modelos locales como Llama 3, Mistral, Gemma, etc.,
+      servidos a través de Ollama.
+    - Google Gemini: Gemini 2.0 Flash, Gemini 2.5 Flash, Gemini 2.5 Pro
+      y cualquier modelo disponible en la API de Google AI.
+    - Sistema de plugins: Se pueden agregar nuevos proveedores
+      registrándolos en el ModelManager.
+    - Cambio dinámico entre proveedores sin reiniciar la aplicación.
+    - Configuración individual de API Key, modelo, temperatura y
+      max_tokens para cada proveedor.
+
+
+2.  SISTEMA DE HERRAMIENTAS (Tool Use / Function Calling)
+    --------------------------------------------------
+    Lectura de archivos:
+      - read_file: Lee archivos de texto con soporte para offset y límite.
+      - list_directory: Lista el contenido de directorios.
+
+    Escritura de archivos:
+      - write_file: Crea/escribe archivos con creación automática de
+        directorios padres.
+
+    Ejecución de comandos:
+      - execute_command: Ejecuta comandos shell con timeout y captura
+        de stdout/stderr.
+      - execute_python: Ejecuta código Python en un subproceso aislado.
+
+    Búsqueda en código:
+      - glob_search: Busca archivos por patrón glob.
+      - content_search: Busca contenido por expresión regular en archivos.
+
+    Web:
+      - web_fetch: Obtiene contenido de URLs.
+      - web_search: Realiza búsquedas web.
+      - download_file: Descarga archivos de URLs.
+
+    Características del sistema de herramientas:
+      - Arquitectura extensible: heredar de BaseTool y registrar.
+      - Tool Registry centralizado.
+      - Cada herramienta tiene definiciones JSON Schema para
+        function calling.
+      - Se pueden activar/desactivar herramientas individualmente
+        desde configuración.
+      - Límite de 10 rondas de tool calls por mensaje.
+
+
+3.  INTERFAZ GRÁFICA (GUI) - PyQt6
+    --------------------------------------------------
+    - Ventana principal con splitter (sidebar + chat).
+    - Sidebar con lista de conversaciones.
+    - Botón "New Conversation" para crear nuevas conversaciones.
+    - Indicador del modelo activo en la sidebar.
+    - Área de chat con burbujas de mensaje.
+    - Renderizado Markdown en los mensajes (negritas, itálicas,
+      headers, listas, bloques de código, enlaces, blockquotes).
+    - Botón "Copy" en cada mensaje para copiar al portapapeles.
+    - Streaming de respuestas en tiempo real.
+    - Input con soporte de Enter para enviar, Shift+Enter para
+      nueva línea.
+    - Barra de archivos adjuntos con vista previa.
+    - Scroll automático al final del chat.
+
+
+4.  SOPORTE MULTIMODAL (Archivos e Imágenes)
+    --------------------------------------------------
+    - Adjuntar imágenes (JPG, PNG, GIF, WebP, BMP).
+    - Redimensionamiento automático de imágenes (máx. 2048px).
+    - Codificación base64 para envío a proveedores.
+    - Adjuntar documentos (PDF, TXT, código fuente, etc.).
+    - Vista previa de imágenes adjuntas en el chat.
+    - Soporte condicional: solo envía archivos si el modelo
+      los soporta.
+
+
+5.  GESTIÓN DE CONVERSACIONES
+    --------------------------------------------------
+    - Múltiples conversaciones simultáneas con pestañas en sidebar.
+    - Historial de mensajes con metadatos (timestamp, tokens).
+    - Sistema de mensajes (user, assistant, system, tool).
+    - Límite configurable de historial (max_history).
+    - Persistencia: guardar/cargar conversaciones en JSON.
+    - System prompt personalizable.
+
+
+6.  CONFIGURACIÓN
+    --------------------------------------------------
+    - Ventana de configuración con pestañas (Providers, Tools,
+      Appearance).
+    - Configuración de API Keys con campo password oculto.
+    - Selector de modelo por proveedor.
+    - Control deslizante de temperatura.
+    - Selector de max_tokens.
+    - Activación/desactivación individual de herramientas.
+    - Selector de tema (dark/light).
+    - Ajuste de tamaño de fuente.
+    - Persistencia en ~/.ai_assistant/config.json.
+    - Atajo de teclado Ctrl+, para abrir configuración.
+
+
+7.  PERSISTENCIA DE CONVERSACIONES (SQLite)
+    --------------------------------------------------
+    - Las conversaciones se guardan automáticamente en una base de
+      datos SQLite local en ~/.ai_assistant/conversations.db.
+    - Cada mensaje se persiste inmediatamente después de ser creado,
+      tanto los del usuario como los del asistente y herramientas.
+    - Al iniciar la aplicación, todas las conversaciones guardadas
+      se cargan automáticamente en la barra lateral.
+    - Esquema de base de datos:
+        - conversations: id, title, system_prompt, created_at, updated_at
+        - messages: id, conversation_id, role, content, timestamp,
+                    tool_calls (JSON), tool_call_id, files (JSON), tokens
+    - Soporte WAL mode para mejor rendimiento de escritura.
+    - Eliminación de conversaciones desde la base de datos.
+    - No se requiere configuración adicional: funciona automáticamente.
+
+
+8.  GESTIÓN DE ERRORES
+    --------------------------------------------------
+    - Los errores de inicialización de proveedores (API key faltante,
+      credenciales inválidas) muestran un mensaje en lugar de crashear.
+    - Los errores de comunicación con la API se muestran en el chat
+      como mensajes del sistema.
+    - Los errores de herramientas se capturan y reportan al modelo.
+    - La interfaz nunca se congela gracias al procesamiento asíncrono.
+    - Todos los errores se registran en consola para debugging.
+
+
+9.  MENÚS Y ACCESOS RÁPIDOS
+    --------------------------------------------------
+    - File: New Conversation (Ctrl+N), Save (Ctrl+S), Exit (Ctrl+Q).
+    - Edit: Settings (Ctrl+,), Clear Chat (Ctrl+L).
+    - Model: Switch entre OpenAI, Anthropic, Ollama, Gemini.
+    - Help: About dialog.
+
+
+10. ARQUITECTURA DEL CÓDIGO
+    --------------------------------------------------
+    Lenguaje: Python 3.10+
+    GUI: PyQt6
+    Async: asyncio para operaciones de red/herramientas
+
+    Estructura modular:
+      main.py                    - Punto de entrada
+      core/
+        config.py                - Gestión de configuración JSON
+        model_manager.py         - Factory y registro de proveedores
+        conversation.py          - Gestión de historial de chat
+        storage.py               - Persistencia SQLite de conversaciones
+        providers/
+          base.py                - Clase abstracta BaseProvider
+          openai_provider.py     - Implementación OpenAI
+          anthropic_provider.py  - Implementación Anthropic
+          ollama_provider.py     - Implementación Ollama
+          gemini_provider.py     - Implementación Google Gemini
+        tools/
+          base.py                - Clase abstracta BaseTool + ToolRegistry
+          file_tools.py          - Herramientas de sistema de archivos
+          command_tools.py       - Herramientas de ejecución de comandos
+          search_tools.py        - Herramientas de búsqueda en código
+          web_tools.py           - Herramientas web
+      gui/
+        main_window.py           - Ventana principal con menús
+        chat_widget.py           - Widget de chat con input y mensajes
+        message_widget.py        - Burbujas de mensaje con Markdown
+        settings_dialog.py       - Diálogo de configuración
+      utils/
+        helpers.py               - Funciones auxiliares
+
+    Características del código:
+      - 100% comentarios en inglés (docstrings).
+      - Tipado estático (type hints).
+      - Principios SOLID aplicados.
+      - Fácil extensibilidad mediante herencia.
+      - Manejo de errores en todas las operaciones.
+
+
+11. REQUISITOS DEL SISTEMA
+    --------------------------------------------------
+    - Python 3.10 o superior.
+    - PyQt6 (interfaz gráfica).
+    - openai (API OpenAI).
+    - anthropic (API Anthropic).
+    - google-genai (API Google Gemini).
+    - httpx (cliente HTTP).
+    - Pillow (procesamiento de imágenes).
+    - markdown (procesamiento de texto, opcional).
+    - pygments (resaltado de sintaxis, opcional).
+
+    Instalación:
+      pip install -r requirements.txt
+      python main.py
+
+
+12. PROVEEDORES REQUIEREN:
+    --------------------------------------------------
+    - OpenAI: API Key de https://platform.openai.com
+    - Anthropic: API Key de https://console.anthropic.com
+    - Ollama: Instalación local de Ollama (https://ollama.ai)
+              con modelos descargados.
+    - Gemini: API Key de https://aistudio.google.com/apikey
+
+
+================================================================================
+  FUNCIONALIDADES FUTURAS (PLANIFICADAS)
+================================================================================
+- Soporte de modelos locales via llama.cpp / GPT4All.
+- Búsqueda y reemplazo en archivos.
+- Control de versiones (Git integration).
+- Temas personalizados (CSS exportable).
+- Exportar conversaciones a PDF/Markdown.
+- Modo oscuro/claro automático según sistema.
+- Comandos slash (/help, /clear, /model).
+- Plugins de terceros (carga dinámica).
+- Historial de conversaciones persistente en base de datos.
+- Asistente de configuración inicial (wizard).
+================================================================================
