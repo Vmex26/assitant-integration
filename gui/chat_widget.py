@@ -451,6 +451,13 @@ class ChatWidget(QWidget):
 
         self._run_async(self._process_response())
 
+    def send_as_user(self, text: str) -> None:
+        """Public method to send a message as if the user typed it."""
+        if self._is_processing:
+            return
+        self.message_input.setPlainText(text)
+        self._on_send()
+
     # ---- Thread-safe helpers for cross-thread GUI operations ----
 
     async def _request_assistant_widget(self) -> MessageWidget:

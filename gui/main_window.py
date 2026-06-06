@@ -33,6 +33,7 @@ from core.tools.search_tools import GlobSearchTool, ContentSearchTool
 from core.tools.web_tools import WebFetchTool, WebSearchTool, DownloadFileTool
 
 from .chat_widget import ChatWidget
+from .log_dialog import LogDialog
 from .settings_dialog import SettingsDialog
 from .system_panel import SystemHealthPanel
 
@@ -165,6 +166,32 @@ class MainWindow(QMainWindow):
         self.system_health = SystemHealthPanel()
         layout.addWidget(self.system_health)
 
+        # Quick actions
+        actions_layout = QHBoxLayout()
+        actions_layout.setSpacing(4)
+
+        info_btn = QPushButton("Info")
+        info_btn.setToolTip("Show system information")
+        info_btn.setStyleSheet(self._action_btn_style())
+        info_btn.clicked.connect(lambda: self._run_diagnostic(
+            "uname -a; echo '---'; lsb_release -a 2>/dev/null || cat /etc/os-release"
+        ))
+
+        disk_btn = QPushButton("Disk")
+        disk_btn.setToolTip("Show disk usage")
+        disk_btn.setStyleSheet(self._action_btn_style())
+        disk_btn.clicked.connect(lambda: self._run_diagnostic("df -h | head -20"))
+
+        log_btn = QPushButton("Logs")
+        log_btn.setToolTip("Analyze system logs")
+        log_btn.setStyleSheet(self._action_btn_style())
+        log_btn.clicked.connect(self._open_log_dialog)
+
+        actions_layout.addWidget(info_btn)
+        actions_layout.addWidget(disk_btn)
+        actions_layout.addWidget(log_btn)
+        layout.addLayout(actions_layout)
+
         # Header
         header = QLabel("Conversations")
         header.setStyleSheet("color: #e0e0e0; font-size: 14px; font-weight: bold; padding: 4px;")
@@ -223,6 +250,41 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.model_indicator)
 
         return sidebar
+
+    def _action_btn_style(self) -> str:
+        return """
+            QPushButton {
+                background-color: #2a2a2a;
+                border: 1px solid #444;
+                border-radius: 4px;
+                padding: 5px 8px;
+                color: #ccc;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #333;
+                border-color: #4fc3f7;
+                color: #fff;
+            }
+        """
+
+    def _run_diagnostic(self, command: str) -> None:
+        """Run a diagnostic command via the AI assistant."""
+        self.chat_widget.send_as_user(f"Run this diagnostic and explain the results:\n```bash\n{command}\n```")
+
+    def _open_log_dialog(self) -> None:
+        """Open the log analyzer dialog."""
+        dialog = LogDialog(self)
+        dialog.log_ready.connect(self._on_log_ready)
+        dialog.show()
+
+    def _on_log_ready(self, content: str, description: str) -> None:
+        """Handle log content from the log dialog."""
+        self.chat_widget.send_as_user(
+            f"Log analysis requested — {description}:\n```\n{content}\n```\n\n"
+            "Analyze these logs and explain any errors or warnings in plain language. "
+            "If you find issues, suggest how to fix them."
+        )
 
     def _create_menu_bar(self) -> None:
         """Create the application menu bar."""
