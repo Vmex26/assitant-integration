@@ -54,6 +54,7 @@ class Config:
             "active_provider": "openai",
             "theme": "dark",
             "font_size": 13,
+            "language": "es",
             "max_history": 100,
             "tools_enabled": {
                 "read_file": True,
@@ -151,6 +152,15 @@ class Config:
     @font_size.setter
     def font_size(self, value: int) -> None:
         self._data["font_size"] = value
+        self.save()
+
+    @property
+    def language(self) -> str:
+        return self._data.get("language", "es")
+
+    @language.setter
+    def language(self, value: str) -> None:
+        self._data["language"] = value
         self.save()
 
     @property

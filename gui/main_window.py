@@ -623,6 +623,13 @@ class MainWindow(QMainWindow):
         session = os.environ.get("XDG_SESSION_TYPE", "unknown")
         shell = os.environ.get("SHELL", "unknown")
 
+        lang = self.config.language
+        lang_instruction = (
+            "The user's language is set to Spanish — respond in Spanish."
+            if lang == "es"
+            else "The user's language is set to English — respond in English."
+        )
+
         return (
             "## System Information\n"
             f"- OS: {os_name}\n"
@@ -709,6 +716,5 @@ class MainWindow(QMainWindow):
             "first (e.g. cp file file.bak)\n"
             "- If you are unsure about the impact of a command, say so and suggest safer "
             "alternatives or ask the user to confirm\n\n"
-            "Detect the user's language from their first message and respond in that language "
-            "throughout the conversation."
+            f"{lang_instruction}"
         )

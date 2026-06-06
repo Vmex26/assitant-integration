@@ -293,6 +293,18 @@ class SettingsDialog(QDialog):
         font_layout.addRow("Font Size:", self.font_spin)
         layout.addWidget(font_group)
 
+        # Language
+        lang_group = QGroupBox("Interface")
+        lang_layout = QFormLayout(lang_group)
+        self.lang_combo = QComboBox()
+        self.lang_combo.addItem("Español", "es")
+        self.lang_combo.addItem("English", "en")
+        idx = self.lang_combo.findData(self.config.language)
+        if idx >= 0:
+            self.lang_combo.setCurrentIndex(idx)
+        lang_layout.addRow("Language:", self.lang_combo)
+        layout.addWidget(lang_group)
+
         layout.addStretch()
         return widget
 
@@ -344,6 +356,9 @@ class SettingsDialog(QDialog):
 
         # Font size
         self.config.font_size = self.font_spin.value()
+
+        # Language
+        self.config.language = self.lang_combo.currentData()
 
         # Tools
         for tool_name, check in self.tool_checks.items():
