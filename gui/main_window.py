@@ -30,6 +30,7 @@ from core.tools.base import ToolRegistry
 from core.tools.file_tools import ReadFileTool, WriteFileTool, ListDirectoryTool
 from core.tools.command_tools import ExecuteCommandTool, ExecutePythonTool
 from core.tools.search_tools import GlobSearchTool, ContentSearchTool
+from core.tools.package_tools import SearchPackageTool, ShowPKGBUILDTool
 from core.tools.web_tools import WebFetchTool, WebSearchTool, DownloadFileTool
 
 from .chat_widget import ChatWidget
@@ -84,6 +85,8 @@ class MainWindow(QMainWindow):
             WebFetchTool,
             WebSearchTool,
             DownloadFileTool,
+            SearchPackageTool,
+            ShowPKGBUILDTool,
         ]:
             self.tool_registry.register(tool_cls())
 
