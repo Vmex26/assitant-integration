@@ -6,16 +6,20 @@ A desktop AI assistant for **Linux beginners and power users alike** — chat wi
 
 This project is built for people who use Linux and sometimes get stuck. Whether you hit a cryptic error, need to understand why a command works (or doesn't), or just want to explore what your system can do — the assistant is here to help in plain language.
 
-- **Beginner-friendly** — explains errors, commands, and system concepts in clear terms
+- **Beginner-friendly, not condescending** — a Linux beginner is not a computer beginner. The assistant uses common sense: safe actions (reading files, listing directories) run directly; risky actions require confirmation.
+- **Risk-based confirmation**:
+  - **Low risk** (read files, list directories, create new files in user space) — proceeds directly, informs you after
+  - **Medium risk** (modify existing files, install packages) — explains and asks before proceeding
+  - **High risk** (sudo, destructive commands, system files) — detailed explanation + explicit confirmation required
 - **System-aware** — knows your OS, kernel, CPU, memory, desktop environment, and shell
-- **Safe by default** — commands require confirmation; `sudo` triggers a graphical password dialog
+- **Safe by default** — commands with `sudo` trigger a graphical password dialog
 - **Privacy-conscious** — run local models via Ollama, no data leaves your machine unless you choose an API provider
 
 ## Features
 
 - **Multi-provider** — OpenAI, Anthropic (Claude), Google Gemini, or local models via Ollama
 - **System interaction** — read/write files, run shell commands, search files, fetch web pages, search the web
-- **Command confirmation** — review what a command does before it runs
+- **Command confirmation** — low-risk actions run directly, medium-risk asks, high-risk requires explicit approval
 - **Sudo support** — KDE-native password dialog (`kdialog`) for privileged commands
 - **Multimodal attachments** — paste or attach images and files (sent to the model when supported)
 - **Streaming responses** — see the AI reply token by token
@@ -73,8 +77,11 @@ You can also enable/disable individual tools and change the appearance theme.
 ## Usage
 
 1. Type a message in natural language — ask about an error, a command you don't understand, or something about your system
-2. The AI can use tools to read/write files, execute commands, search the web, etc.
-3. Commands with `sudo` will trigger a KDE password dialog
+2. The AI reads files, runs commands, and searches the web on its own — it does not ask you to open a terminal
+3. Confirmation behavior depends on risk level:
+   - **Low risk** (reading files, listing directories) — runs directly, you see the result
+   - **Medium risk** (modifying files, installing packages) — the AI explains and asks before proceeding
+   - **High risk** (sudo, destructive commands) — detailed explanation + password dialog required
 4. Click **Stop** (red button) to cancel the AI mid-generation
 5. Switch between conversations in the left sidebar
 6. Right-click a conversation to **Rename** or **Delete** it
