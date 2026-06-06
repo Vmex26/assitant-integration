@@ -1,19 +1,29 @@
 # AI Assistant Integrer
 
-A modular, multi-provider AI assistant desktop GUI built with Python and PyQt6. Execute tools (files, commands, web), attach multimodal content, and persist conversations — all from a chat interface.
+A desktop AI assistant for **Linux beginners and power users alike** — chat with an AI that can read/write files, run commands, search the web, and explain what's happening on your system. Think of it as a friendly system administrator that lives in your taskbar.
+
+## Philosophy
+
+This project is built for people who use Linux and sometimes get stuck. Whether you hit a cryptic error, need to understand why a command works (or doesn't), or just want to explore what your system can do — the assistant is here to help in plain language.
+
+- **Beginner-friendly** — explains errors, commands, and system concepts in clear terms
+- **System-aware** — knows your OS, kernel, CPU, memory, desktop environment, and shell
+- **Safe by default** — commands require confirmation; `sudo` triggers a graphical password dialog
+- **Privacy-conscious** — run local models via Ollama, no data leaves your machine unless you choose an API provider
 
 ## Features
 
-- **Multi-provider support** — OpenAI, Anthropic (Claude), Google Gemini, and local models via Ollama
-- **Tool execution** — read/write files, run shell commands, search files, fetch web pages, search the web
-- **Multimodal attachments** — paste or attach images and files; sent to the model when supported
+- **Multi-provider** — OpenAI, Anthropic (Claude), Google Gemini, or local models via Ollama
+- **System interaction** — read/write files, run shell commands, search files, fetch web pages, search the web
+- **Command confirmation** — review what a command does before it runs
+- **Sudo support** — KDE-native password dialog (`kdialog`) for privileged commands
+- **Multimodal attachments** — paste or attach images and files (sent to the model when supported)
 - **Streaming responses** — see the AI reply token by token
-- **Command confirmation** — explicit user approval before running shell commands
-- **Sudo support** — KDE-native password dialog (`kdialog`) for `sudo` commands
 - **Conversation persistence** — automatic save/restore via SQLite
 - **Stop generation** — cancel the AI mid-response
-- **Dark theme** — eye-friendly dark interface
-- **System-aware prompt** — the AI knows your OS, CPU, memory, and desktop environment
+- **Dark theme** — easy on the eyes
+- **System-aware prompt** — the AI automatically knows your hardware and software environment
+- **Conversation management** — rename, delete, and switch between conversations
 
 ## Requirements
 
@@ -23,32 +33,26 @@ A modular, multi-provider AI assistant desktop GUI built with Python and PyQt6. 
   - OpenAI API key
   - Anthropic API key
   - Google Gemini API key
-  - Ollama (local)
+  - Ollama (local, no API key needed)
 
 ## Installation
 
-### 1. Clone the repository
 ```bash
 git clone git@github.com:Vmex26/assitant-integration.git
 cd assitant-integration
-```
-
-### 2. Create a virtual environment (recommended)
-```bash
 python3 -m venv venv
 source venv/bin/activate
-```
-
-### 3. Install dependencies
-```bash
 pip install -r requirements.txt
 ```
 
-### 4. Run the application
+### Run
+
 ```bash
 ./run.sh
 ```
+
 Or directly:
+
 ```bash
 source venv/bin/activate && python3 main.py
 ```
@@ -57,23 +61,24 @@ source venv/bin/activate && python3 main.py
 
 On first launch, open **Settings** (`Ctrl+,` or `Edit > Settings...`) and configure at least one provider:
 
-| Provider | API Key Required | Notes |
-|----------|-----------------|-------|
-| OpenAI   | Yes             | `gpt-4o`, `gpt-4o-mini`, etc. |
-| Anthropic | Yes            | `claude-sonnet-4`, `claude-haiku-3`, etc. |
-| Gemini   | Yes             | `gemini-2.5-flash`, `gemini-2.5-pro`, etc. |
-| Ollama   | No              | Runs local models, configure base URL and model name |
+| Provider | API Key | Notes |
+|----------|---------|-------|
+| OpenAI   | Required | `gpt-4o`, `gpt-4o-mini`, etc. |
+| Anthropic | Required | `claude-sonnet-4`, `claude-haiku-3`, etc. |
+| Gemini   | Required | `gemini-2.5-flash`, `gemini-2.5-pro`, etc. |
+| Ollama   | Not needed | Local models, configure base URL and model name |
 
 You can also enable/disable individual tools and change the appearance theme.
 
 ## Usage
 
-1. Type a message in the input box and press **Enter** (or click **Send**)
+1. Type a message in natural language — ask about an error, a command you don't understand, or something about your system
 2. The AI can use tools to read/write files, execute commands, search the web, etc.
 3. Commands with `sudo` will trigger a KDE password dialog
 4. Click **Stop** (red button) to cancel the AI mid-generation
 5. Switch between conversations in the left sidebar
-6. Attach files with the paperclip button or paste images from clipboard
+6. Right-click a conversation to **Rename** or **Delete** it
+7. Attach files with the paperclip button or paste images from clipboard
 
 ## Project Structure
 
@@ -87,12 +92,12 @@ ai-assistant-integrer/
 │   ├── conversation.py      # Conversation and message models
 │   ├── model_manager.py     # Provider factory/registry
 │   ├── storage.py           # SQLite persistence layer
-│   └── providers/
-│       ├── base.py          # Abstract provider interface
-│       ├── openai_provider.py
-│       ├── anthropic_provider.py
-│       ├── ollama_provider.py
-│       └── gemini_provider.py
+│   ├── providers/
+│   │   ├── base.py          # Abstract provider interface
+│   │   ├── openai_provider.py
+│   │   ├── anthropic_provider.py
+│   │   ├── ollama_provider.py
+│   │   └── gemini_provider.py
 │   └── tools/
 │       ├── base.py          # Abstract tool interface
 │       ├── file_tools.py    # read_file, write_file, list_directory
