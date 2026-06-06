@@ -2,7 +2,7 @@
 
 import re
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Callable, List, Optional
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QPixmap, QTextCursor
@@ -145,6 +145,7 @@ class MessageWidget(QFrame):
         content: str,
         files: Optional[List[str]] = None,
         is_streaming: bool = False,
+        on_tts: Optional[Callable[[str], None]] = None,
         parent: Optional[QWidget] = None,
     ):
         super().__init__(parent)
@@ -152,6 +153,7 @@ class MessageWidget(QFrame):
         self.files = files or []
         self.is_streaming = is_streaming
         self._full_content = content
+        self._on_tts = on_tts
         self._init_ui()
 
     def _init_ui(self) -> None:
@@ -179,15 +181,49 @@ class MessageWidget(QFrame):
             if file_widget:
                 layout.addWidget(file_widget)
 
-        # Message content
-        self.text_browser = MarkdownTextBrowser()
-        self.text_browser.set_markdown(self._full_content)
-        self.text_browser.setStyleSheet(self._get_content_style())
-        layout.addWidget(self.text_browser)
+        # Message content — plain text for tool, markdown for others
+        if self.role == "tool":
+            self.text_label = QLabel(self._full_content)
+            self.text_label.setWordWrap(True)
+            self.text_label.setStyleSheet("""
+                QLabel {
+                    background: transparent;
+                    color: #c0c0c0;
+                    font-size: 12px;
+                    font-family: 'Courier New', monospace;
+                    padding: 4px;
+                }
+            """)
+            layout.addWidget(self.text_label)
+        else:
+            self.text_browser = MarkdownTextBrowser()
+            self.text_browser.set_markdown(self._full_content)
+            self.text_browser.setStyleSheet(self._get_content_style())
+            layout.addWidget(self.text_browser)
 
-        # Copy button
+        # Button row
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
+
+        if self.role == "assistant" and self._on_tts:
+            tts_btn = QPushButton("🔊 Speak")
+            tts_btn.setFixedSize(80, 24)
+            tts_btn.setStyleSheet("""
+                QPushButton {
+                    background: transparent;
+                    border: 1px solid #555;
+                    border-radius: 4px;
+                    color: #81c784;
+                    font-size: 11px;
+                }
+                QPushButton:hover {
+                    background: #2a3a2a;
+                    color: #a5d6a7;
+                }
+            """)
+            tts_btn.clicked.connect(lambda: self._on_tts(self._full_content))
+            btn_layout.addWidget(tts_btn)
+
         copy_btn = QPushButton("Copy")
         copy_btn.setFixedSize(60, 24)
         copy_btn.setStyleSheet("""
@@ -324,7 +360,10 @@ class MessageWidget(QFrame):
     def append_stream_text(self, text: str) -> None:
         """Append text during streaming."""
         self._full_content += text
-        self.text_browser.append_markdown(text)
+        if self.role == "tool":
+            self.text_label.setText(self._full_content)
+        else:
+            self.text_browser.append_markdown(text)
 
     def _copy_content(self) -> None:
         """Copy message content to clipboard."""
@@ -334,4 +373,7 @@ class MessageWidget(QFrame):
     def set_content(self, content: str) -> None:
         """Set/replace the full content."""
         self._full_content = content
-        self.text_browser.set_markdown(content)
+        if self.role == "tool":
+            self.text_label.setText(content)
+        else:
+            self.text_browser.set_markdown(content)

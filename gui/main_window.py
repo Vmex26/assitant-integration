@@ -388,7 +388,7 @@ class MainWindow(QMainWindow):
 
         # Model menu
         model_menu = menubar.addMenu("Model")
-        for name in ["openai", "anthropic", "ollama", "gemini"]:
+        for name in ["openai", "anthropic", "ollama", "gemini", "openai_compatible"]:
             action = QAction(name.capitalize(), self, checkable=True)
             action.setChecked(name == self.config.active_provider)
             action.triggered.connect(lambda checked, n=name: self._switch_provider(n))

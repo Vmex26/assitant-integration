@@ -13,6 +13,7 @@ from core.providers.openai_provider import OpenAIProvider
 from core.providers.anthropic_provider import AnthropicProvider
 from core.providers.ollama_provider import OllamaProvider
 from core.providers.gemini_provider import GeminiProvider
+from core.providers.openai_compatible_provider import OpenAICompatibleProvider
 
 
 class ProviderError(Exception):
@@ -28,6 +29,7 @@ class ModelManager:
         "anthropic": AnthropicProvider,
         "ollama": OllamaProvider,
         "gemini": GeminiProvider,
+        "openai_compatible": OpenAICompatibleProvider,
     }
 
     def __init__(self, config: Config):

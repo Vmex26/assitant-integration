@@ -186,7 +186,7 @@ class SettingsDialog(QDialog):
         provider_group = QGroupBox("Active Provider")
         provider_layout = QFormLayout(provider_group)
         self.provider_combo = QComboBox()
-        self.provider_combo.addItems(["openai", "anthropic", "ollama", "gemini"])
+        self.provider_combo.addItems(["openai", "anthropic", "ollama", "gemini", "openai_compatible"])
         self.provider_combo.setCurrentText(self.config.active_provider)
         provider_layout.addRow("Default Provider:", self.provider_combo)
         layout.addWidget(provider_group)
@@ -232,6 +232,23 @@ class SettingsDialog(QDialog):
         self.gemini_model = QLineEdit(self.config.provider_config("gemini").get("model", "gemini-2.0-flash"))
         gemini_layout.addRow("Model:", self.gemini_model)
         layout.addWidget(gemini_group)
+
+        # OpenAI-Compatible (DeepSeek, Groq, Together, etc.)
+        oai_compat_group = QGroupBox("OpenAI-Compatible (DeepSeek, Groq, Together...)")
+        oai_compat_layout = QFormLayout(oai_compat_group)
+        self.oai_compat_key = QLineEdit()
+        self.oai_compat_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.oai_compat_key.setText(self.config.provider_config("openai_compatible").get("api_key", ""))
+        oai_compat_layout.addRow("API Key:", self.oai_compat_key)
+        self.oai_compat_url = QLineEdit(
+            self.config.provider_config("openai_compatible").get("base_url", "https://api.deepseek.com/v1")
+        )
+        oai_compat_layout.addRow("Base URL:", self.oai_compat_url)
+        self.oai_compat_model = QLineEdit(
+            self.config.provider_config("openai_compatible").get("model", "deepseek-chat")
+        )
+        oai_compat_layout.addRow("Model:", self.oai_compat_model)
+        layout.addWidget(oai_compat_group)
 
         # Common temperature
         temp_group = QGroupBox("Default Parameters")
@@ -345,9 +362,14 @@ class SettingsDialog(QDialog):
         self.config.set("providers", "gemini", "api_key", self.gemini_key.text())
         self.config.set("providers", "gemini", "model", self.gemini_model.text())
 
+        # OpenAI-Compatible
+        self.config.set("providers", "openai_compatible", "api_key", self.oai_compat_key.text())
+        self.config.set("providers", "openai_compatible", "base_url", self.oai_compat_url.text())
+        self.config.set("providers", "openai_compatible", "model", self.oai_compat_model.text())
+
         # Common params
         temp_value = self.temp_slider.value() / 100.0
-        for provider in ["openai", "anthropic", "ollama", "gemini"]:
+        for provider in ["openai", "anthropic", "ollama", "gemini", "openai_compatible"]:
             self.config.set("providers", provider, "temperature", temp_value)
             self.config.set("providers", provider, "max_tokens", self.max_tokens_spin.value())
 

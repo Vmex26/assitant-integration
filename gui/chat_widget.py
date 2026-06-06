@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from core.audio import AudioRecorder, TTSEngine, Transcriber
 from core.conversation import Conversation, Message
 from core.model_manager import ModelManager
 from core.tools.base import ToolRegistry
@@ -175,6 +176,11 @@ class ChatWidget(QWidget):
         self._is_processing = False
         self._cancel_requested = False
 
+        # Audio recording & TTS
+        self._audio_recorder = AudioRecorder()
+        self._transcriber = Transcriber()
+        self._tts_engine = TTSEngine()
+
         # Background worker for async AI processing
         self._async_worker = AsyncWorker()
         self._async_thread = QThread(self)
@@ -241,6 +247,10 @@ class ChatWidget(QWidget):
 
         self.scroll_area.setWidget(self.messages_container)
         layout.addWidget(self.scroll_area, 1)
+
+        # Welcome overlay (shown when chat is empty)
+        self.welcome_label = QLabel()
+        self._show_welcome()
 
         # Thinking indicator
         self.thinking_label = QLabel("  \u23F3 Assistant is thinking...")
@@ -321,6 +331,40 @@ class ChatWidget(QWidget):
         """)
         input_layout.addWidget(self.attach_btn)
 
+        self.audio_btn = QPushButton("🎤")
+        self.audio_btn.setFixedSize(40, 40)
+        self.audio_btn.setToolTip("Record audio message")
+        self.audio_btn.setStyleSheet("""
+            QPushButton {
+                background: #333;
+                border: 1px solid #555;
+                border-radius: 8px;
+                font-size: 18px;
+            }
+            QPushButton:hover {
+                background: #444;
+                border-color: #4fc3f7;
+            }
+        """)
+        input_layout.addWidget(self.audio_btn)
+
+        self.tts_btn = QPushButton("🔊")
+        self.tts_btn.setFixedSize(40, 40)
+        self.tts_btn.setToolTip("Stop audio playback")
+        self.tts_btn.setStyleSheet("""
+            QPushButton {
+                background: #333;
+                border: 1px solid #555;
+                border-radius: 8px;
+                font-size: 18px;
+            }
+            QPushButton:hover {
+                background: #444;
+                border-color: #4fc3f7;
+            }
+        """)
+        input_layout.addWidget(self.tts_btn)
+
         self.message_input = MessageInput()
         input_layout.addWidget(self.message_input, 1)
 
@@ -372,12 +416,80 @@ class ChatWidget(QWidget):
         self.message_input.files_pasted.connect(self._on_files_pasted)
         self.attach_btn.clicked.connect(self._on_attach_files)
         self.stop_btn.clicked.connect(self._on_stop)
+        self.audio_btn.clicked.connect(self._on_audio_toggle)
+        self.tts_btn.clicked.connect(self._on_tts_stop)
+
+    def _on_tts_stop(self) -> None:
+        """Stop current TTS playback."""
+        self._tts_engine.stop()
+
+    def _on_audio_toggle(self) -> None:
+        """Toggle audio recording on/off."""
+        if self._audio_recorder.is_recording:
+            self._audio_recorder.stop()
+            self.audio_btn.setStyleSheet("""
+                QPushButton {
+                    background: #333;
+                    border: 1px solid #555;
+                    border-radius: 8px;
+                    font-size: 18px;
+                }
+                QPushButton:hover {
+                    background: #444;
+                    border-color: #4fc3f7;
+                }
+            """)
+        else:
+            self._audio_recorder.start(on_stop=self._on_audio_ready)
+            self.audio_btn.setStyleSheet("""
+                QPushButton {
+                    background: #c62828;
+                    border: 1px solid #e53935;
+                    border-radius: 8px;
+                    font-size: 18px;
+                    color: #fff;
+                }
+                QPushButton:hover {
+                    background: #e53935;
+                }
+            """)
+            self.audio_btn.setText("⏹")
+
+    def _on_audio_ready(self, audio_path: str) -> None:
+        """Called when recording is complete — transcribe and send."""
+        self.audio_btn.setText("🎤")
+        self.audio_btn.setStyleSheet("""
+            QPushButton {
+                background: #333;
+                border: 1px solid #555;
+                border-radius: 8px;
+                font-size: 18px;
+            }
+            QPushButton:hover {
+                background: #444;
+                border-color: #4fc3f7;
+            }
+        """)
+        text = self._transcriber.transcribe(audio_path)
+        try:
+            _os.unlink(audio_path)
+        except Exception:
+            pass
+        if text and not text.startswith("[Error"):
+            self.message_input.setPlainText(text)
+            self._on_send()
 
     def _on_stop(self) -> None:
         """Stop the current AI generation."""
         self._cancel_requested = True
         self._async_worker.cancel_all()
         self.thinking_label.setText("  Stopping...")
+
+    def _remove_welcome(self) -> None:
+        """Remove the welcome label if present."""
+        if self.welcome_label and self.welcome_label.parent():
+            self.welcome_label.deleteLater()
+            self.welcome_label = QLabel()
 
     def _on_files_pasted(self, files: List[str]) -> None:
         """Handle files pasted from clipboard."""
@@ -432,6 +544,7 @@ class ChatWidget(QWidget):
         if not text and not self._attached_files:
             return
 
+        self._remove_welcome()
         self._send_message(text)
 
     def _send_message(self, text: str) -> None:
@@ -465,8 +578,11 @@ class ChatWidget(QWidget):
         event = threading.Event()
         widget_container: List[Optional[MessageWidget]] = [None]
 
+        def _tts_cb(text: str) -> None:
+            self._tts_engine.speak(text)
+
         def _on_main() -> None:
-            widget = MessageWidget("assistant", "", is_streaming=True)
+            widget = MessageWidget("assistant", "", is_streaming=True, on_tts=_tts_cb)
             self.messages_layout.addWidget(widget)
             self._scroll_to_bottom()
             widget_container[0] = widget
@@ -707,15 +823,41 @@ class ChatWidget(QWidget):
             if item and item.widget():
                 item.widget().deleteLater()
 
+        if not self.conversation.entries:
+            self._show_welcome()
+            self._scroll_to_bottom()
+            return
+
+        def _tts_cb(text: str) -> None:
+            self._tts_engine.speak(text)
+
         for entry in self.conversation.entries:
             widget = MessageWidget(
                 entry.role,
                 entry.content,
                 files=entry.files,
+                on_tts=_tts_cb if entry.role == "assistant" else None,
             )
             self.messages_layout.addWidget(widget)
 
         self._scroll_to_bottom()
+
+    def _show_welcome(self) -> None:
+        """Show the welcome label."""
+        self.welcome_label = QLabel()
+        self.welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.welcome_label.setWordWrap(True)
+        username = _os.environ.get("USER", "user")
+        self.welcome_label.setText(
+            f'<div style="font-size: 28px; color: #555; margin-top: 80px;">'
+            f"Bienvenido {username}"
+            f'</div>'
+            f'<div style="font-size: 14px; color: #444;">'
+            f"Escribe un mensaje o usa los botones de la barra lateral para comenzar"
+            f"</div>"
+        )
+        self.messages_layout.addWidget(self.welcome_label)
+        self.messages_layout.setAlignment(self.welcome_label, Qt.AlignmentFlag.AlignCenter)
 
     def clear_chat(self) -> None:
         """Clear the chat display and conversation."""

@@ -50,6 +50,13 @@ class Config:
                     "temperature": 0.7,
                     "max_tokens": 4096,
                 },
+                "openai_compatible": {
+                    "api_key": "",
+                    "base_url": "https://api.deepseek.com/v1",
+                    "model": "deepseek-chat",
+                    "temperature": 0.7,
+                    "max_tokens": 4096,
+                },
             },
             "active_provider": "openai",
             "theme": "dark",
