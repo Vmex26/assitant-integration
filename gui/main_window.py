@@ -95,7 +95,7 @@ class MainWindow(QMainWindow):
     def _save_active_conversation(self) -> None:
         """Persist the current conversation to storage."""
         conv = self._conversations.get(self._active_conversation_id)
-        if conv:
+        if conv and len(conv) > 0:
             try:
                 self.storage.save_conversation(conv)
             except Exception as e:
