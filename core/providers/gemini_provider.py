@@ -5,6 +5,7 @@ Supports Gemini 2.0 Flash, Gemini 2.5 Flash, and other Gemini models
 with tool/function calling and image inputs.
 """
 
+import base64
 import json
 from typing import Any, Callable, Dict, List, Optional
 
@@ -94,10 +95,14 @@ class GeminiProvider(BaseProvider):
                             args = json.loads(tc["function"]["arguments"])
                         except (json.JSONDecodeError, KeyError):
                             args = {}
-                        parts.append(genai_types.Part.from_function_call(
+                        part = genai_types.Part.from_function_call(
                             name=tc["function"]["name"],
                             args=args,
-                        ))
+                        )
+                        sig = tc.get("thought_signature")
+                        if sig:
+                            part.thought_signature = base64.b64decode(sig)
+                        parts.append(part)
                 if parts:
                     contents.append(genai_types.Content(role="model", parts=parts))
 
@@ -154,6 +159,7 @@ class GeminiProvider(BaseProvider):
                     elif part.function_call:
                         if tool_calls is None:
                             tool_calls = []
+                        sig = part.thought_signature
                         tool_calls.append({
                             "id": part.function_call.id,
                             "type": "function",
@@ -161,6 +167,7 @@ class GeminiProvider(BaseProvider):
                                 "name": part.function_call.name,
                                 "arguments": json.dumps(part.function_call.args),
                             },
+                            "thought_signature": base64.b64encode(sig).decode() if sig else None,
                         })
             finish = candidate.finish_reason or ""
             if finish == "STOP" or finish == 1:
@@ -210,6 +217,7 @@ class GeminiProvider(BaseProvider):
                             elif part.function_call:
                                 if tool_calls is None:
                                     tool_calls = []
+                                sig = part.thought_signature
                                 tool_calls.append({
                                     "id": part.function_call.name,
                                     "type": "function",
@@ -217,6 +225,7 @@ class GeminiProvider(BaseProvider):
                                         "name": part.function_call.name,
                                         "arguments": json.dumps(part.function_call.args),
                                     },
+                                    "thought_signature": base64.b64encode(sig).decode() if sig else None,
                                 })
                     if candidate.finish_reason:
                         fr = candidate.finish_reason

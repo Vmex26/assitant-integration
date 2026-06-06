@@ -6,6 +6,7 @@ interact with HTTP APIs.
 """
 
 from typing import Any, Dict, Optional
+from urllib.parse import quote
 
 import httpx
 
@@ -100,7 +101,7 @@ class WebSearchTool(BaseTool):
         }
 
     async def execute(self, query: str, num_results: int = 5) -> str:
-        search_url = f"https://html.duckduckgo.com/html/?q={httpx.utils.quote(query)}"
+        search_url = f"https://html.duckduckgo.com/html/?q={quote(query)}"
 
         try:
             async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
