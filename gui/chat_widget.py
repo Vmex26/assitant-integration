@@ -197,8 +197,10 @@ class ChatWidget(QWidget):
         self._cancel_requested = True
         self._queue_timer.stop()
         self._async_worker.cancel_all()
+        self._async_worker.stop()
         self._async_thread.quit()
-        self._async_thread.wait(3000)
+        if not self._async_thread.wait(5000):
+            print("Warning: worker thread did not finish in time")
         self.message_input.cleanup_temp_files()
 
     def _init_ui(self) -> None:
