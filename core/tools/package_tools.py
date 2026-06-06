@@ -5,8 +5,6 @@ Allows searching, inspecting, installing, and removing system packages.
 For AUR packages, provides PKGBUILD inspection before installation.
 """
 
-import json
-import subprocess
 from typing import Any, Dict, Optional
 
 from .base import BaseTool
@@ -120,7 +118,7 @@ class ShowPKGBUILDTool(BaseTool):
     """Fetch and display a PKGBUILD from the AUR."""
 
     name = "show_pkgbuild"
-    description = "Fetch and display the PKGBUILD of an AUR package. Always use this before installing AUR packages."
+    description = "Fetch and display the PKGBUILD of an AUR package. Only works for AUR packages (not official repos). Always use this before installing AUR packages."
     parameters = {
         "type": "object",
         "properties": {
@@ -134,7 +132,7 @@ class ShowPKGBUILDTool(BaseTool):
 
     async def execute(self, package: str, **kwargs) -> str:
         import httpx
-        rpc_url = f"https://aur.archlinux.org/rpc/v2/info/{package}"
+        rpc_url = f"https://aur.archlinux.org/rpc/v5/info/{package}"
         try:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.get(rpc_url)
@@ -144,7 +142,10 @@ class ShowPKGBUILDTool(BaseTool):
             return f"Error fetching AUR info: {e}"
 
         if data.get("type") != "multiinfo" or not data.get("results"):
-            return f"Package '{package}' not found in AUR."
+            return (
+                f"Package '{package}' not found in AUR.\n\n"
+                "(It may exist in the official repositories — try search_package instead.)"
+            )
 
         info = data["results"][0]
         lines = [
