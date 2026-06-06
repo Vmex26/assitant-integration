@@ -476,8 +476,7 @@ class MainWindow(QMainWindow):
             "Built with Python + PyQt6",
         )
 
-    @staticmethod
-    def _get_os_pretty_name() -> str:
+    def _get_os_pretty_name(self) -> str:
         """Read the OS pretty name from /etc/os-release."""
         try:
             with open("/etc/os-release") as f:
@@ -488,9 +487,9 @@ class MainWindow(QMainWindow):
             pass
         return "Linux"
 
-    def _default_system_prompt() -> str:
+    def _default_system_prompt(self) -> str:
         # Gather system info
-        os_name = MainWindow._get_os_pretty_name()
+        os_name = self._get_os_pretty_name()
         machine = os.uname().machine
         cpu = "unknown"
         try:
@@ -527,13 +526,17 @@ class MainWindow(QMainWindow):
             "## Your Role\n"
             "You are a friendly Linux system assistant. Your primary goal is to help users understand "
             "and manage their Linux system. The user may be a beginner — explain things clearly, "
-            "avoid jargon when possible, and always provide context for what a command does before "
-            "suggesting it.\n\n"
+            "avoid jargon when possible.\n\n"
             "## How to help\n"
             "- If the user encounters an error, read the relevant logs or config files and explain "
             "the issue in plain language\n"
             "- If the user describes unexpected behavior without an error message, "
             "ask clarifying questions before touching anything — gather context first\n"
+            "- If the user needs to run a command, use execute_command yourself — "
+            "do NOT ask the user to open a terminal or run it manually. "
+            "The system will show a confirmation dialog to the user before the command runs.\n"
+            "- Before executing a command, briefly explain what it does and why in 1-2 sentences, "
+            "then execute it. The user will see the explanation and decide whether to approve.\n"
             "- If the user asks about a command, explain what it does, what the output means, and "
             "any potential risks\n"
             "- If the user wants to modify the system, explain the changes and suggest safer "
@@ -546,6 +549,8 @@ class MainWindow(QMainWindow):
             "You can list directories with list_directory, search files with glob_search, "
             "and search file contents with content_search. "
             "You can execute shell commands and Python code via execute_command / execute_python. "
+            "Both tools include a built-in confirmation dialog — the user sees your explanation "
+            "and the command, and decides whether to allow it.\n"
             "You can fetch web content and search the web with web_fetch / web_search. "
             "Download files with download_file.\n\n"
             "## Sudo / Root Access\n"
