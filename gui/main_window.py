@@ -34,6 +34,7 @@ from core.tools.web_tools import WebFetchTool, WebSearchTool, DownloadFileTool
 
 from .chat_widget import ChatWidget
 from .settings_dialog import SettingsDialog
+from .system_panel import SystemHealthPanel
 
 
 class MainWindow(QMainWindow):
@@ -66,6 +67,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         """Clean up background threads on close."""
         self.chat_widget.cleanup()
+        self.system_health.cleanup()
         super().closeEvent(event)
 
     def _init_tools(self) -> None:
@@ -158,6 +160,10 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
+
+        # System health panel
+        self.system_health = SystemHealthPanel()
+        layout.addWidget(self.system_health)
 
         # Header
         header = QLabel("Conversations")
