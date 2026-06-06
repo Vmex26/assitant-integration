@@ -118,7 +118,7 @@ class ShowPKGBUILDTool(BaseTool):
     """Fetch and display a PKGBUILD from the AUR."""
 
     name = "show_pkgbuild"
-    description = "Fetch and display the PKGBUILD of an AUR package. Only works for AUR packages (not official repos). Always use this before installing AUR packages."
+    description = "Fetch detailed info and PKGBUILD source for an AUR package. Only works for AUR packages (not official repos). Use this to audit a package before installing it — it shows maintainer, votes, popularity, dependencies, and the full PKGBUILD content."
     parameters = {
         "type": "object",
         "properties": {
@@ -157,6 +157,8 @@ class ShowPKGBUILDTool(BaseTool):
             f"# URL: {info.get('URL', 'N/A')}",
             f"# Dependencies: {', '.join(info.get('Depends', [])) or 'none'}",
             f"# Make deps: {', '.join(info.get('MakeDepends', [])) or 'none'}",
+            f"# Provides: {', '.join(info.get('Provides', [])) or 'none'}",
+            f"# Conflicts: {', '.join(info.get('Conflicts', [])) or 'none'}",
             "",
             "## PKGBUILD source",
         ]
