@@ -177,14 +177,18 @@ class MainWindow(QMainWindow):
         info_btn = QPushButton("Info")
         info_btn.setToolTip("Show system information")
         info_btn.setStyleSheet(self._action_btn_style())
-        info_btn.clicked.connect(lambda: self._run_diagnostic(
-            "uname -a; echo '---'; lsb_release -a 2>/dev/null || cat /etc/os-release"
+        info_btn.clicked.connect(lambda: self._confirm_and_run(
+            "uname -a; echo '---'; lsb_release -a 2>/dev/null || cat /etc/os-release",
+            "Show system information (OS, kernel, architecture)?"
         ))
 
         disk_btn = QPushButton("Disk")
         disk_btn.setToolTip("Show disk usage")
         disk_btn.setStyleSheet(self._action_btn_style())
-        disk_btn.clicked.connect(lambda: self._run_diagnostic("df -h | head -20"))
+        disk_btn.clicked.connect(lambda: self._confirm_and_run(
+            "df -h | head -20",
+            "Show disk usage for all mounted filesystems?"
+        ))
 
         log_btn = QPushButton("Logs")
         log_btn.setToolTip("Analyze system logs")
@@ -282,6 +286,15 @@ class MainWindow(QMainWindow):
         """Run a diagnostic command via the AI assistant."""
         self.chat_widget.send_as_user(f"Run this diagnostic and explain the results:\n```bash\n{command}\n```")
 
+    def _confirm_and_run(self, command: str, question: str) -> None:
+        """Ask confirmation before running a diagnostic."""
+        reply = QMessageBox.question(
+            self, "Confirm diagnostic", question,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._run_diagnostic(command)
+
     def _open_log_dialog(self) -> None:
         """Open the log analyzer dialog."""
         dialog = LogDialog(self)
@@ -291,7 +304,18 @@ class MainWindow(QMainWindow):
     def _open_service_dialog(self) -> None:
         """Open the service manager dialog."""
         dialog = ServiceDialog(self)
+        dialog.service_explain.connect(self._on_service_explain)
         dialog.show()
+
+    def _on_service_explain(self, name: str, description: str) -> None:
+        """Send a service description to the AI for explanation."""
+        self.chat_widget.send_as_user(
+            f"Explain what this systemd service does, whether it's safe to disable, "
+            f"and what depends on it:\n\n"
+            f"- **Service:** {name}\n"
+            f"- **Description:** {description}\n\n"
+            f"Use `systemctl cat {name}.service` or check its unit file if needed."
+        )
 
     def _on_log_ready(self, content: str, description: str) -> None:
         """Handle log content from the log dialog."""

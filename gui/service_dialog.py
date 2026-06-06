@@ -71,6 +71,8 @@ class ServiceLoader(QObject):
 class ServiceDialog(QDialog):
     """Dialog to view and manage systemd services."""
 
+    service_explain = pyqtSignal(str, str)  # service_name, description
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("System Services")
@@ -161,6 +163,22 @@ class ServiceDialog(QDialog):
 
         layout.addLayout(btn_layout)
 
+        # Explain button
+        explain_layout = QHBoxLayout()
+        self.explain_btn = QPushButton("Explain this service with AI")
+        self.explain_btn.setEnabled(False)
+        self.explain_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4fc3f7; border: none;
+                border-radius: 6px; padding: 8px 16px; color: #000; font-weight: bold;
+            }
+            QPushButton:disabled { background-color: #444; color: #666; }
+            QPushButton:hover:!disabled { background-color: #29b6f6; }
+        """)
+        self.explain_btn.clicked.connect(self._explain_service)
+        explain_layout.addWidget(self.explain_btn, 1)
+        layout.addLayout(explain_layout)
+
         self.status_label = QLabel("Loading services...")
         self.status_label.setStyleSheet("color: #888; font-size: 11px;")
         layout.addWidget(self.status_label)
@@ -238,6 +256,14 @@ class ServiceDialog(QDialog):
         for btn in [self.start_btn, self.stop_btn, self.restart_btn,
                     self.enable_btn, self.disable_btn]:
             btn.setEnabled(selected)
+        self.explain_btn.setEnabled(selected)
+
+    def _explain_service(self):
+        row = self.table.currentRow()
+        if row < 0 or row >= len(self._services):
+            return
+        svc = self._services[row]
+        self.service_explain.emit(svc.name, svc.description)
 
     def _action(self, action: str):
         row = self.table.currentRow()
