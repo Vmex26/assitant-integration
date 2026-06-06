@@ -284,7 +284,9 @@ class MainWindow(QMainWindow):
 
     def _run_diagnostic(self, command: str) -> None:
         """Run a diagnostic command via the AI assistant."""
-        self.chat_widget.send_as_user(f"Run this diagnostic and explain the results:\n```bash\n{command}\n```")
+        self.chat_widget.send_as_user(
+            f"[System Action] Run this diagnostic and explain the results:\n```bash\n{command}\n```"
+        )
 
     def _confirm_and_run(self, command: str, question: str) -> None:
         """Ask confirmation before running a diagnostic."""
@@ -310,7 +312,7 @@ class MainWindow(QMainWindow):
     def _on_service_explain(self, name: str, description: str) -> None:
         """Send a service description to the AI for explanation."""
         self.chat_widget.send_as_user(
-            f"Explain what this systemd service does, whether it's safe to disable, "
+            f"[System Action] Explain what this systemd service does, whether it's safe to disable, "
             f"and what depends on it:\n\n"
             f"- **Service:** {name}\n"
             f"- **Description:** {description}\n\n"
@@ -320,7 +322,7 @@ class MainWindow(QMainWindow):
     def _on_log_ready(self, content: str, description: str) -> None:
         """Handle log content from the log dialog."""
         self.chat_widget.send_as_user(
-            f"Log analysis requested — {description}:\n```\n{content}\n```\n\n"
+            f"[System Action] Log analysis requested — {description}:\n```\n{content}\n```\n\n"
             "Analyze these logs and explain any errors or warnings in plain language. "
             "If you find issues, suggest how to fix them."
         )
@@ -635,6 +637,10 @@ class MainWindow(QMainWindow):
             "and manage their Linux system. The user may be a beginner — explain things clearly, "
             "avoid jargon when possible.\n\n"
             "## How to help\n"
+            "- Messages prefixed with `[System Action]` are sent automatically by the software "
+            "(e.g. diagnostic buttons, log analyzer, service explain). "
+            "Treat them as direct requests from the user — the user triggered the action, "
+            "but the content was gathered automatically.\n"
             "- If the user encounters an error, read the relevant logs or config files and explain "
             "the issue in plain language\n"
             "- If the user describes unexpected behavior without an error message, "
