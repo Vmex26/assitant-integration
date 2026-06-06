@@ -35,6 +35,7 @@ from core.tools.web_tools import WebFetchTool, WebSearchTool, DownloadFileTool
 
 from .chat_widget import ChatWidget
 from .log_dialog import LogDialog
+from .service_dialog import ServiceDialog
 from .settings_dialog import SettingsDialog
 from .system_panel import SystemHealthPanel
 
@@ -190,9 +191,15 @@ class MainWindow(QMainWindow):
         log_btn.setStyleSheet(self._action_btn_style())
         log_btn.clicked.connect(self._open_log_dialog)
 
+        svc_btn = QPushButton("Services")
+        svc_btn.setToolTip("View and manage system services")
+        svc_btn.setStyleSheet(self._action_btn_style())
+        svc_btn.clicked.connect(self._open_service_dialog)
+
         actions_layout.addWidget(info_btn)
         actions_layout.addWidget(disk_btn)
         actions_layout.addWidget(log_btn)
+        actions_layout.addWidget(svc_btn)
         layout.addLayout(actions_layout)
 
         # Header
@@ -279,6 +286,11 @@ class MainWindow(QMainWindow):
         """Open the log analyzer dialog."""
         dialog = LogDialog(self)
         dialog.log_ready.connect(self._on_log_ready)
+        dialog.show()
+
+    def _open_service_dialog(self) -> None:
+        """Open the service manager dialog."""
+        dialog = ServiceDialog(self)
         dialog.show()
 
     def _on_log_ready(self, content: str, description: str) -> None:
