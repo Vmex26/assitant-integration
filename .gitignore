@@ -21,3 +21,7 @@ Thumbs.db
 
 # Config (user-specific, contains API keys)
 config.json
+
+# Scratch / session files
+sesion
+ia\ lee\ fasfetch

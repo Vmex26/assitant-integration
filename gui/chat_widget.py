@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import os as _os
+import queue
 import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -184,9 +186,16 @@ class ChatWidget(QWidget):
         self._init_ui()
         self._connect_signals()
 
+        # Cross-thread call queue (background thread → main thread)
+        self._main_queue: queue.Queue = queue.Queue()
+        self._queue_timer = QTimer(self)
+        self._queue_timer.timeout.connect(self._flush_main_queue)
+        self._queue_timer.start(30)
+
     def cleanup(self) -> None:
         """Stop the background thread. Call this before destroying the widget."""
         self._cancel_requested = True
+        self._queue_timer.stop()
         self._async_worker.cancel_all()
         self._async_thread.quit()
         self._async_thread.wait(3000)
@@ -454,7 +463,7 @@ class ChatWidget(QWidget):
             widget_container[0] = widget
             event.set()
 
-        QTimer.singleShot(0, _on_main)
+        self._run_in_main(_on_main)
         while not event.is_set():
             if self._cancel_requested:
                 return None
@@ -475,7 +484,7 @@ class ChatWidget(QWidget):
             result_container[0] = bool(dialog.exec())
             event.set()
 
-        QTimer.singleShot(0, _on_main)
+        self._run_in_main(_on_main)
         while not event.is_set():
             if self._cancel_requested:
                 return False
@@ -484,7 +493,7 @@ class ChatWidget(QWidget):
 
     def _add_tool_widget(self, role: str, content: str) -> None:
         """Schedule a tool result widget addition in the main thread."""
-        QTimer.singleShot(0, lambda: self._do_add_tool_widget(role, content))
+        self._run_in_main(self._do_add_tool_widget, role, content)
 
     def _do_add_tool_widget(self, role: str, content: str) -> None:
         widget = MessageWidget(role, content)
@@ -650,6 +659,16 @@ class ChatWidget(QWidget):
         from core.config import Config
         return Config()
 
+    def _flush_main_queue(self) -> None:
+        """Process the cross-thread call queue in the main thread (called by QTimer)."""
+        while True:
+            try:
+                item = self._main_queue.get_nowait()
+                func, args = item
+                func(*args)
+            except queue.Empty:
+                break
+
     def _run_async(self, coro) -> None:
         """Submit coroutine to background worker without blocking the GUI."""
 
@@ -663,10 +682,9 @@ class ChatWidget(QWidget):
 
         self._async_worker.submit(_wrapper())
 
-    @staticmethod
-    def _run_in_main(func: Callable, *args: Any) -> None:
-        """Run a function in the main GUI thread via QTimer."""
-        QTimer.singleShot(0, lambda f=func, a=args: f(*a))
+    def _run_in_main(self, func: Callable, *args: Any) -> None:
+        """Schedule a function to run in the main GUI thread via queue."""
+        self._main_queue.put((func, args))
 
     def load_conversation(self, conversation: Conversation) -> None:
         """Load a different conversation into the chat view."""

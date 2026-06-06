@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWidgets import (
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QListWidget,
     QListWidgetItem,
@@ -205,6 +206,8 @@ class MainWindow(QMainWindow):
             }
         """)
         self.conv_list.currentItemChanged.connect(self._on_conversation_selected)
+        self.conv_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.conv_list.customContextMenuRequested.connect(self._on_conv_context_menu)
         layout.addWidget(self.conv_list, 1)
 
         # Model indicator
@@ -325,6 +328,66 @@ class MainWindow(QMainWindow):
             self._active_conversation_id = conv_id
             self.chat_widget.load_conversation(conv)
             self._update_model_indicator()
+
+    def _on_conv_context_menu(self, pos) -> None:
+        """Show right-click context menu for conversation list items."""
+        item = self.conv_list.itemAt(pos)
+        if not item:
+            return
+        menu = QMenu(self)
+        rename_action = menu.addAction("Rename")
+        delete_action = menu.addAction("Delete")
+        action = menu.exec(self.conv_list.mapToGlobal(pos))
+        if action == rename_action:
+            self._rename_conversation(item)
+        elif action == delete_action:
+            self._delete_conversation(item)
+
+    def _rename_conversation(self, item: QListWidgetItem) -> None:
+        """Rename a conversation from the sidebar."""
+        conv_id = item.data(Qt.ItemDataRole.UserRole)
+        conv = self._conversations.get(conv_id)
+        if not conv:
+            return
+        new_title, ok = QInputDialog.getText(
+            self, "Rename Conversation", "New name:",
+            text=conv.title,
+        )
+        if ok and new_title.strip():
+            conv.title = new_title.strip()
+            item.setText(f"  {conv.title}")
+            self._save_active_conversation()
+
+    def _delete_conversation(self, item: QListWidgetItem) -> None:
+        """Delete a conversation from the sidebar."""
+        conv_id = item.data(Qt.ItemDataRole.UserRole)
+        conv = self._conversations.get(conv_id)
+        if not conv:
+            return
+        reply = QMessageBox.question(
+            self, "Delete Conversation",
+            f'Delete "{conv.title}"?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self.storage.delete_conversation(conv_id)
+        del self._conversations[conv_id]
+        row = self.conv_list.row(item)
+        self.conv_list.takeItem(row)
+        if self._active_conversation_id == conv_id:
+            remaining = list(self._conversations.keys())
+            if remaining:
+                first = remaining[0]
+                self._active_conversation_id = first
+                self.chat_widget.load_conversation(self._conversations[first])
+                for i in range(self.conv_list.count()):
+                    it = self.conv_list.item(i)
+                    if it.data(Qt.ItemDataRole.UserRole) == first:
+                        self.conv_list.setCurrentItem(it)
+                        break
+            else:
+                self._new_conversation()
 
     def _switch_provider(self, name: str) -> None:
         """Switch the active AI provider."""
