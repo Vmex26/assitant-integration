@@ -477,8 +477,20 @@ class MainWindow(QMainWindow):
         )
 
     @staticmethod
+    def _get_os_pretty_name() -> str:
+        """Read the OS pretty name from /etc/os-release."""
+        try:
+            with open("/etc/os-release") as f:
+                for line in f:
+                    if line.startswith("PRETTY_NAME="):
+                        return line.split("=", 1)[1].strip().strip('"')
+        except Exception:
+            pass
+        return "Linux"
+
     def _default_system_prompt() -> str:
         # Gather system info
+        os_name = MainWindow._get_os_pretty_name()
         machine = os.uname().machine
         cpu = "unknown"
         try:
@@ -505,15 +517,29 @@ class MainWindow(QMainWindow):
 
         return (
             "## System Information\n"
-            f"- OS: CachyOS (Arch Linux)\n"
+            f"- OS: {os_name}\n"
             f"- Kernel: {os.uname().release}\n"
             f"- Architecture: {machine}\n"
             f"- CPU: {cpu}\n"
             f"- Memory: {memory}\n"
             f"- Desktop: {desktop} ({session})\n"
             f"- Shell: {shell}\n\n"
+            "## Your Role\n"
+            "You are a friendly Linux system assistant. Your primary goal is to help users understand "
+            "and manage their Linux system. The user may be a beginner — explain things clearly, "
+            "avoid jargon when possible, and always provide context for what a command does before "
+            "suggesting it.\n\n"
+            "## How to help\n"
+            "- If the user encounters an error, read the relevant logs or config files and explain "
+            "the issue in plain language\n"
+            "- If the user asks about a command, explain what it does, what the output means, and "
+            "any potential risks\n"
+            "- If the user wants to modify the system, explain the changes and suggest safer "
+            "alternatives when appropriate\n"
+            "- Use the tools available to you proactively — read files, check system state, "
+            "search for information\n"
+            "- When in doubt, explain your reasoning before taking action\n\n"
             "## Capabilities\n"
-            "You are an AI assistant with full access to the user's file system. "
             "You can read and write files anywhere on the system using read_file / write_file. "
             "You can list directories with list_directory, search files with glob_search, "
             "and search file contents with content_search. "
@@ -531,6 +557,6 @@ class MainWindow(QMainWindow):
             "If the user asks you to read, analyze, or modify files anywhere, "
             "use the appropriate tools to do so. "
             "The user's home directory is fully accessible.\n\n"
-            "Be helpful and proactive. When the user asks about their files or system, "
-            "use the tools to find and examine the relevant information."
+            "The user's preferred language is Spanish — respond in Spanish unless asked otherwise. "
+            "You can switch between Spanish and English as needed, but default to Spanish."
         )

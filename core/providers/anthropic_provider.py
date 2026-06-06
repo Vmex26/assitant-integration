@@ -4,9 +4,15 @@ Anthropic Claude provider implementation.
 Supports Claude models with tool/function calling and image inputs.
 """
 
+import base64
+import io
+import json
+import mimetypes
 from typing import Any, Callable, Dict, List, Optional
 
 from anthropic import AsyncAnthropic
+
+from PIL import Image
 
 from .base import BaseProvider, Message, ProviderResult, ToolDefinition
 
@@ -62,7 +68,6 @@ class AnthropicProvider(BaseProvider):
                     blocks.append({"type": "text", "text": msg.content})
                 for tc in msg.tool_calls:
                     try:
-                        import json
                         parsed_input = json.loads(tc["function"]["arguments"])
                     except (json.JSONDecodeError, KeyError):
                         parsed_input = {}
@@ -112,7 +117,6 @@ class AnthropicProvider(BaseProvider):
             if block.type == "text":
                 content_text += block.text
             elif block.type == "tool_use":
-                import json
                 if tool_calls is None:
                     tool_calls = []
                 tool_calls.append({
@@ -152,7 +156,6 @@ class AnthropicProvider(BaseProvider):
 
             for block in response.content:
                 if block.type == "tool_use":
-                    import json
                     tool_calls.append({
                         "id": block.id,
                         "type": "function",
@@ -170,8 +173,6 @@ class AnthropicProvider(BaseProvider):
 
     def _encode_media(self, file_path: str) -> Optional[Dict[str, Any]]:
         """Encode a file for multimodal input."""
-        import base64
-        import mimetypes
 
         file_ext = file_path.lower().rsplit(".", 1)[-1] if "." in file_path else ""
         image_extensions = {"jpg", "jpeg", "png", "gif", "webp"}
@@ -179,9 +180,11 @@ class AnthropicProvider(BaseProvider):
 
         if file_ext in image_extensions:
             try:
-                from PIL import Image
-                import io
                 img = Image.open(file_path)
+                if img.mode in ("RGBA", "P"):
+                    img = img.convert("RGB")
+                img.thumbnail((2048, 2048), Image.LANCZOS)
+                buffer = io.BytesIO()
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
                 img.thumbnail((2048, 2048), Image.LANCZOS)
