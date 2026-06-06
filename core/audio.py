@@ -1,22 +1,30 @@
 import os
 import tempfile
 import threading
+import time
 from pathlib import Path
 from typing import Callable, Optional
 
+import numpy as np
 import sounddevice as sd
 import soundfile as sf
 
 
 class AudioRecorder:
-    """Record audio from microphone to a WAV file."""
+    """Record audio from microphone to a WAV file with silence detection."""
 
-    def __init__(self):
+    def __init__(self, silence_timeout: float = 1.5, silence_threshold: float = 0.01):
         self._fs = 16000
+        self._silence_timeout = silence_timeout
+        self._silence_threshold = silence_threshold
         self._recording: list = []
         self._stream: Optional[sd.InputStream] = None
         self._is_recording = False
         self._on_stop_callback: Optional[Callable[[str], None]] = None
+        self._last_sound_time: float = 0.0
+        self._silence_checker: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
+        self._lock = threading.Lock()
 
     @property
     def is_recording(self) -> bool:
@@ -29,10 +37,16 @@ class AudioRecorder:
         self._recording = []
         self._on_stop_callback = on_stop
         self._is_recording = True
+        self._stop_event.clear()
+        self._last_sound_time = time.time()
 
         def callback(indata, frames, time_info, status):
-            if self._is_recording:
-                self._recording.append(indata.copy())
+            if not self._is_recording:
+                return
+            self._recording.append(indata.copy())
+            rms = np.sqrt(np.mean(indata ** 2))
+            if rms > self._silence_threshold:
+                self._last_sound_time = time.time()
 
         self._stream = sd.InputStream(
             samplerate=self._fs,
@@ -42,31 +56,49 @@ class AudioRecorder:
         )
         self._stream.start()
 
-    def stop(self) -> Optional[str]:
-        """Stop recording and return path to saved WAV file."""
-        if not self._is_recording:
-            return None
-        self._is_recording = False
-        if self._stream:
-            self._stream.stop()
-            self._stream.close()
-            self._stream = None
+        self._silence_checker = threading.Thread(target=self._check_silence, daemon=True)
+        self._silence_checker.start()
 
-        if not self._recording:
-            return None
+    def _check_silence(self) -> None:
+        """Background thread that stops recording after sustained silence."""
+        while self._is_recording and not self._stop_event.is_set():
+            if time.time() - self._last_sound_time > self._silence_timeout:
+                self._finalize()
+                break
+            time.sleep(0.1)
 
-        import numpy as np
-        audio_data = np.concatenate(self._recording, axis=0)
+    def _finalize(self) -> None:
+        """Internal: stop stream and save recording."""
+        with self._lock:
+            if not self._is_recording:
+                return
+            self._is_recording = False
+            self._stop_event.set()
+            if self._stream:
+                self._stream.stop()
+                self._stream.close()
+                self._stream = None
 
+            if not self._recording:
+                self._recording = []
+                return
+
+            audio_data = np.concatenate(self._recording, axis=0)
+            self._recording = []
         tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False, prefix="recording_")
         tmp.close()
         sf.write(tmp.name, audio_data, self._fs)
-        self._recording = []
 
         if self._on_stop_callback:
             self._on_stop_callback(tmp.name)
 
-        return tmp.name
+    def stop(self) -> Optional[str]:
+        """Manually stop recording."""
+        if not self._is_recording:
+            return None
+        self._stop_event.set()
+        self._finalize()
+        return None
 
 
 class Transcriber:
