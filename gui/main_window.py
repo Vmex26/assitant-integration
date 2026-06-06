@@ -55,17 +55,7 @@ class MainWindow(QMainWindow):
         self._init_ui()
         self._load_saved_conversations()
 
-        if self._conversations:
-            first_id = next(iter(self._conversations))
-            self._active_conversation_id = first_id
-            self.chat_widget.load_conversation(self._conversations[first_id])
-            for i in range(self.conv_list.count()):
-                item = self.conv_list.item(i)
-                if item.data(Qt.ItemDataRole.UserRole) == first_id:
-                    self.conv_list.setCurrentItem(item)
-                    break
-        else:
-            self._new_conversation()
+        self._new_conversation()
 
     def closeEvent(self, event):
         """Clean up background threads on close."""
