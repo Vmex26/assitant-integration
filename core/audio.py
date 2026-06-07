@@ -1,3 +1,4 @@
+import importlib
 import os
 import tempfile
 import threading
@@ -115,6 +116,7 @@ class Transcriber:
         self._model_size: str = "small"
         self._device: str = "auto"
         self._compute_type: str = "auto"
+        self._model_lock = threading.Lock()
 
     def configure(
         self,
@@ -129,17 +131,21 @@ class Transcriber:
         self._model = None  # force reload on next call
 
     def _load_model(self) -> None:
-        if self._model is not None:
-            return
+        with self._model_lock:
+            if self._model is not None:
+                return
         try:
             from faster_whisper import WhisperModel
         except ImportError:
             raise RuntimeError("faster-whisper is not installed. Run: pip install faster-whisper")
         device = self._device
         if device == "auto":
-            import torch  # type: ignore[reportMissingImports]
+            if importlib.util.find_spec("torch") is not None:
+                import torch  # type: ignore[reportMissingImports]
 
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+            else:
+                device = "cpu"
         compute = self._compute_type
         if compute == "auto":
             compute = "float16" if device == "cuda" else "int8"
@@ -149,7 +155,9 @@ class Transcriber:
             device,
             compute,
         )
-        self._model = WhisperModel(self._model_size, device=device, compute_type=compute)
+        model = WhisperModel(self._model_size, device=device, compute_type=compute)
+        with self._model_lock:
+            self._model = model
 
     def transcribe(self, audio_path: str, language: str = "es") -> str | None:
         """Transcribe audio file using faster-whisper."""

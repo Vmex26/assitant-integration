@@ -5,11 +5,14 @@ import json
 import os as _os
 import queue
 import threading as _threading
+import time as _time
 import typing
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import numpy as _np
+import sounddevice as _sd
 from PyQt6.QtCore import QObject, Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QKeyEvent
 from PyQt6.QtWidgets import (
@@ -221,6 +224,14 @@ class ChatWidget(QWidget):
 
         self._init_ui()
         self._connect_signals()
+
+        def _preload_whisper() -> None:
+            try:
+                self._transcriber._load_model()
+            except Exception:
+                pass
+
+        _threading.Thread(target=_preload_whisper, daemon=True).start()
 
         # Cross-thread call queue (background thread → main thread)
         self._main_queue: queue.Queue = queue.Queue()
@@ -511,9 +522,6 @@ class ChatWidget(QWidget):
         self.thinking_label.setText("  \U0001f4de Call mode...")
         self.thinking_label.setVisible(True)
 
-        self.conversation.add("system", "[System Action] Voice call mode started.")
-        self.conversation_updated.emit()
-
         self._run_async_call(self._process_call_loop())
 
     def _end_call(self) -> None:
@@ -553,8 +561,9 @@ class ChatWidget(QWidget):
         self._rebuild_messages()
 
     async def _process_call_loop(self) -> None:
-        """Main voice call loop: AI respond -> TTS -> record -> transcribe -> repeat."""
+        """Main voice call loop: record -> transcribe -> AI respond -> TTS -> repeat."""
         call_instruction = (
+            "\n\n---\n"
             "Voice call mode is active. IMPORTANT RULES:\n"
             "- Respond in PLAIN TEXT without any markdown (no **bold**, no headers, "
             "no code blocks). Your response will be read aloud by TTS.\n"
@@ -562,66 +571,73 @@ class ChatWidget(QWidget):
             "- For medium-risk actions (modifying files, installing), ask the user "
             "verbally and then proceed if they say yes - no GUI dialogs.\n"
             "- Do NOT attempt sudo, destructive, or irreversible commands.\n"
-            "- When the conversation is complete or the user wants to end, "
-            "include [END_CALL] at the very end of your final response.\n"
+            "- NEVER end the call on your own. Only include [END_CALL] at the "
+            "very end of your final response when the USER explicitly asks to "
+            "end the call or says goodbye.\n"
+            "- If the user seems done but hasn't explicitly asked to end, "
+            "ask them before ending. In Spanish ask: '¿Quieres terminar la "
+            "llamada?'. In English ask: 'Do you want to end the call?'.\n"
             "- You may use tools normally.\n"
             "- Speak naturally and conversationally, like a phone assistant."
         )
-        self.conversation.add("system", call_instruction)
+        original_system_prompt = self.conversation.system_prompt
+        self.conversation.system_prompt = original_system_prompt + call_instruction
 
-        while self._call_active:
-            self._run_in_main(self._set_processing_state, True)
+        try:
+            while self._call_active:
+                self._play_beep()
+                self._run_in_main(self.thinking_label.setText, "  \U0001f3a4 Listening...")
 
-            await self._process_response()
+                audio_path = await self._record_and_wait()
+                if not audio_path or not self._call_active:
+                    break
 
-            if not self._call_active:
-                break
+                self._run_in_main(self.thinking_label.setText, "  \U0001f3a4 Transcribing...")
 
-            last_text = self._get_last_assistant_text()
-            if not last_text:
-                break
+                text = await self._transcribe_and_get_text(audio_path)
+                if not text or text.startswith("[Error"):
+                    continue
 
-            call_ended = False
-            if "[END_CALL]" in last_text:
-                call_ended = True
-                last_text = last_text.replace("[END_CALL]", "").strip()
+                if "termina la llamada" in text.lower():
+                    self._run_in_main(self._end_call)
+                    return
 
-            if last_text:
-                await self._speak_and_wait(last_text)
+                self._run_in_main(self._do_call_send_ui, text)
+                self.conversation.add("user", text)
+                self.conversation_updated.emit()
+                if not self._call_active:
+                    break
 
-            if call_ended:
-                self._run_in_main(self._end_call)
-                return
+                self._run_in_main(self._set_processing_state, True)
+                await self._process_response()
 
-            if not self._call_active:
-                break
+                if not self._call_active:
+                    break
 
-            self._run_in_main(self.thinking_label.setText, "  \U0001f3a4 Listening...")
+                last_text = self._get_last_assistant_text()
+                if not last_text:
+                    break
 
-            audio_path = await self._record_and_wait()
-            if not audio_path or not self._call_active:
-                break
+                call_ended = False
+                if "[END_CALL]" in last_text:
+                    call_ended = True
+                    last_text = last_text.replace("[END_CALL]", "").strip()
 
-            self._run_in_main(self.thinking_label.setText, "  \U0001f3a4 Transcribing...")
+                if last_text:
+                    await self._speak_and_wait(last_text)
 
-            text = await self._transcribe_and_get_text(audio_path)
-            if not text or text.startswith("[Error"):
-                continue
+                if call_ended:
+                    self._run_in_main(self._end_call)
+                    return
+        finally:
+            self.conversation.system_prompt = original_system_prompt
 
-            if "termina la llamada" in text.lower():
-                self._run_in_main(self._end_call)
-                return
-
-            self._run_in_main(self._do_call_send, text)
-
-    def _do_call_send(self, text: str) -> None:
-        """Add user message from call mode and rebuild UI."""
+    def _do_call_send_ui(self, text: str) -> None:
+        """Add user message widget to UI (main thread only)."""
         self._remove_welcome()
         user_widget = MessageWidget("user", text)
         self.messages_layout.addWidget(user_widget)
         self._scroll_to_bottom()
-        self.conversation.add("user", text)
-        self.conversation_updated.emit()
 
     def _get_last_assistant_text(self) -> str | None:
         """Get the last assistant message content from the conversation."""
@@ -630,12 +646,21 @@ class ChatWidget(QWidget):
                 return entry.content
         return None
 
+    @typing.no_type_check
+    def _play_beep(self) -> None:
+        """Play a short beep tone to indicate recording start."""
+        fs = 16000
+        duration = 0.12
+        t = _np.linspace(0, duration, int(fs * duration), False)
+        tone = 0.25 * _np.sin(2 * _np.pi * 440 * t)
+        _sd.play(tone, fs)
+
     async def _speak_and_wait(self, text: str) -> None:
         """Speak text via TTS and wait for playback to finish."""
         if not text.strip():
             return
         self._tts_engine.speak(text)
-        while self._tts_engine.is_playing:
+        while self._tts_engine.is_speaking:
             if not self._call_active or self._cancel_requested:
                 self._tts_engine.stop()
                 return
@@ -645,6 +670,8 @@ class ChatWidget(QWidget):
         """Record audio and wait for silence detection. Returns path to audio file."""
         recording_done = _threading.Event()
         audio_path_container: list[str | None] = [None]
+        max_duration = 30.0
+        start_time = _time.time()
 
         def _on_stop(path: str) -> None:
             audio_path_container[0] = path
@@ -655,17 +682,30 @@ class ChatWidget(QWidget):
             if not self._call_active or self._cancel_requested:
                 self._audio_recorder.stop()
                 return None
+            if _time.time() - start_time > max_duration:
+                self._audio_recorder.stop()
+                break
             await asyncio.sleep(0.1)
         return audio_path_container[0]
 
     async def _transcribe_and_get_text(self, audio_path: str) -> str | None:
         """Transcribe audio file in executor (non-blocking)."""
         loop = asyncio.get_running_loop()
-        text = await loop.run_in_executor(None, lambda: self._transcriber.transcribe(audio_path))
         try:
-            _os.unlink(audio_path)
-        except Exception:
-            pass
+            text = await asyncio.wait_for(
+                loop.run_in_executor(None, lambda: self._transcriber.transcribe(audio_path)),
+                timeout=60.0,
+            )
+        except TimeoutError:
+            logger.error("Transcription timed out")
+            return None
+        except asyncio.CancelledError:
+            return None
+        finally:
+            try:
+                _os.unlink(audio_path)
+            except Exception:
+                pass
         return text
 
     def _on_audio_toggle(self) -> None:
@@ -737,9 +777,13 @@ class ChatWidget(QWidget):
             self._on_send()
 
     def _on_stop(self) -> None:
-        """Stop the current AI generation or end call mode."""
+        """Stop the current phase in call mode, or cancel AI generation."""
         if self._call_active:
-            self._end_call()
+            if self._audio_recorder.is_recording:
+                self._audio_recorder.stop()
+            else:
+                self._cancel_requested = True
+                self._async_worker.cancel_all()
             return
         self._cancel_requested = True
         self._async_worker.cancel_all()
@@ -1095,7 +1139,7 @@ class ChatWidget(QWidget):
             try:
                 await coro
             except asyncio.CancelledError:
-                pass
+                self._run_in_main(self._end_call)
             except Exception as e:
                 logger.error("Call mode error: %s", e)
                 self._run_in_main(self._end_call)
