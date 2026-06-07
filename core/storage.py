@@ -10,10 +10,9 @@ import sqlite3
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.conversation import Conversation, ConversationEntry
-
 
 DB_PATH = Path.home() / ".ai_assistant" / "conversations.db"
 
@@ -21,7 +20,7 @@ DB_PATH = Path.home() / ".ai_assistant" / "conversations.db"
 class ConversationStorage:
     """SQLite-backed storage for conversations."""
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         self.db_path = db_path or DB_PATH
         self._lock = threading.Lock()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -100,7 +99,7 @@ class ConversationStorage:
             finally:
                 conn.close()
 
-    def load_conversation(self, conv_id: str) -> Optional[Conversation]:
+    def load_conversation(self, conv_id: str) -> Conversation | None:
         """Load a single conversation with all its messages."""
         with self._lock:
             conn = sqlite3.connect(str(self.db_path))
@@ -127,11 +126,11 @@ class ConversationStorage:
                 for mrow in msg_rows:
                     try:
                         tool_calls = json.loads(mrow[4]) if mrow[4] else None
-                    except (json.JSONDecodeError, TypeError):
+                    except json.JSONDecodeError, TypeError:
                         tool_calls = None
                     try:
                         files = json.loads(mrow[6]) if mrow[6] else []
-                    except (json.JSONDecodeError, TypeError):
+                    except json.JSONDecodeError, TypeError:
                         files = []
                     entry = ConversationEntry(
                         id=mrow[0],
@@ -149,7 +148,7 @@ class ConversationStorage:
             finally:
                 conn.close()
 
-    def list_conversations(self) -> List[Dict[str, Any]]:
+    def list_conversations(self) -> list[dict[str, Any]]:
         """List all conversations summary (id, title, created_at, message_count)."""
         with self._lock:
             conn = sqlite3.connect(str(self.db_path))

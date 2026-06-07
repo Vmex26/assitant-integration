@@ -7,10 +7,8 @@ Controls log levels and output formatting. The verbose flag
 
 import logging
 import sys
-from typing import Optional
 
-
-_LOG: Optional[logging.Logger] = None
+_LOG: logging.Logger | None = None
 
 
 def get_logger(name: str = "assistant") -> logging.Logger:
@@ -23,10 +21,12 @@ def get_logger(name: str = "assistant") -> logging.Logger:
     _LOG.setLevel(logging.INFO)
 
     handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(logging.Formatter(
-        "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
-    ))
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            datefmt="%H:%M:%S",
+        )
+    )
     _LOG.addHandler(handler)
 
     return _LOG.getChild(name)

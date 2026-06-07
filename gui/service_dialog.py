@@ -3,7 +3,6 @@ Systemd service viewer dialog.
 """
 
 import subprocess
-from typing import List, Optional
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -37,7 +36,9 @@ class ServiceLoader(QObject):
         try:
             result = subprocess.run(
                 ["systemctl", "list-units", "--type=service", "--all", "--no-pager"],
-                capture_output=True, text=True, timeout=20,
+                capture_output=True,
+                text=True,
+                timeout=20,
             )
             if result.returncode != 0:
                 self.error.emit(result.stderr.strip())
@@ -53,12 +54,14 @@ class ServiceLoader(QObject):
                 state = parts[1]  # loaded
                 status = parts[2]  # active/inactive
                 desc = " ".join(parts[3:])
-                entries.append(ServiceEntry(
-                    name=name.replace(".service", ""),
-                    state=state,
-                    status=status,
-                    description=desc,
-                ))
+                entries.append(
+                    ServiceEntry(
+                        name=name.replace(".service", ""),
+                        state=state,
+                        status=status,
+                        description=desc,
+                    )
+                )
             self.finished.emit(entries)
         except FileNotFoundError:
             self.error.emit("systemctl not found — is this a systemd-based system?")
@@ -77,7 +80,7 @@ class ServiceDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("System Services")
         self.resize(750, 500)
-        self._services: List[ServiceEntry] = []
+        self._services: list[ServiceEntry] = []
         self._is_loading = False
         self._init_ui()
         self._load_services()
@@ -149,8 +152,13 @@ class ServiceDialog(QDialog):
         self.disable_btn = QPushButton("Disable")
         self.disable_btn.clicked.connect(lambda: self._action("disable"))
 
-        for btn in [self.start_btn, self.stop_btn, self.restart_btn,
-                    self.enable_btn, self.disable_btn]:
+        for btn in [
+            self.start_btn,
+            self.stop_btn,
+            self.restart_btn,
+            self.enable_btn,
+            self.disable_btn,
+        ]:
             btn.setEnabled(False)
             btn.setStyleSheet("""
                 QPushButton {
@@ -206,7 +214,7 @@ class ServiceDialog(QDialog):
         thread.finished.connect(lambda: self._cleanup_loading(thread, worker))
         thread.start()
 
-    def _on_loaded(self, entries: List[ServiceEntry]):
+    def _on_loaded(self, entries: list[ServiceEntry]):
         self._is_loading = False
         self._all_services = entries
         self._services = list(entries)
@@ -223,7 +231,7 @@ class ServiceDialog(QDialog):
         thread.deleteLater()
         worker.deleteLater()
 
-    def _populate_table(self, entries: List[ServiceEntry]):
+    def _populate_table(self, entries: list[ServiceEntry]):
         self.table.setRowCount(len(entries))
         for i, svc in enumerate(entries):
             self.table.setItem(i, 0, self._item(svc.name))
@@ -245,6 +253,7 @@ class ServiceDialog(QDialog):
 
     def _color(self, hex_color: str):
         from PyQt6.QtGui import QColor
+
         return QColor(hex_color)
 
     def _filter_services(self, text: str):
@@ -252,13 +261,20 @@ class ServiceDialog(QDialog):
             self._services = list(self._all_services)
         else:
             t = text.lower()
-            self._services = [s for s in self._all_services if t in s.name.lower() or t in s.description.lower()]
+            self._services = [
+                s for s in self._all_services if t in s.name.lower() or t in s.description.lower()
+            ]
         self._populate_table(self._services)
 
     def _on_selection_changed(self):
         selected = self.table.currentRow() >= 0
-        for btn in [self.start_btn, self.stop_btn, self.restart_btn,
-                    self.enable_btn, self.disable_btn]:
+        for btn in [
+            self.start_btn,
+            self.stop_btn,
+            self.restart_btn,
+            self.enable_btn,
+            self.disable_btn,
+        ]:
             btn.setEnabled(selected)
         self.explain_btn.setEnabled(selected)
 

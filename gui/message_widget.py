@@ -1,8 +1,9 @@
 """Message bubble widget for rendering chat messages with markdown support."""
 
 import re
+import typing
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, List, Optional
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QPixmap, QTextCursor
@@ -21,7 +22,7 @@ from PyQt6.QtWidgets import (
 class MarkdownTextBrowser(QTextBrowser):
     """QTextBrowser with improved markdown and code rendering."""
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setOpenExternalLinks(True)
         self.setReadOnly(True)
@@ -43,6 +44,7 @@ class MarkdownTextBrowser(QTextBrowser):
         self.insertHtml(html)
         QTimer.singleShot(0, self._adjust_height)
 
+    @typing.override
     def resizeEvent(self, event):
         super().resizeEvent(event)
         QTimer.singleShot(0, self._adjust_height)
@@ -71,58 +73,58 @@ class MarkdownTextBrowser(QTextBrowser):
         text = html_mod.escape(text)
 
         # Code blocks (```...```) with syntax highlighting hint
-        def replace_code_block(match: "re.Match[str]") -> str:
+        def replace_code_block(match: re.Match[str]) -> str:
             lang = match.group(1) or ""
             code = match.group(2)
             # We don't do full syntax highlighting here, but add language class
             lang_class = f' class="language-{lang}"' if lang else ""
-            return f'<pre><code{lang_class}>{code}</code></pre>'
+            return f"<pre><code{lang_class}>{code}</code></pre>"
 
         text = re.sub(
-            r'```(\w*)\n(.*?)```',
+            r"```(\w*)\n(.*?)```",
             replace_code_block,
             text,
             flags=re.DOTALL,
         )
 
         # Inline code
-        text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
+        text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
 
         # Bold and italic
-        text = re.sub(r'\*\*\*(.+?)\*\*\*', r'<strong><em>\1</em></strong>', text)
-        text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-        text = re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
+        text = re.sub(r"\*\*\*(.+?)\*\*\*", r"<strong><em>\1</em></strong>", text)
+        text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+        text = re.sub(r"\*(.+?)\*", r"<em>\1</em>", text)
 
         # Headers
-        text = re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
-        text = re.sub(r'^## (.+)$', r'<h2>\1</h2>', text, flags=re.MULTILINE)
-        text = re.sub(r'^# (.+)$', r'<h1>\1</h1>', text, flags=re.MULTILINE)
+        text = re.sub(r"^### (.+)$", r"<h3>\1</h3>", text, flags=re.MULTILINE)
+        text = re.sub(r"^## (.+)$", r"<h2>\1</h2>", text, flags=re.MULTILINE)
+        text = re.sub(r"^# (.+)$", r"<h1>\1</h1>", text, flags=re.MULTILINE)
 
         # Links
         text = re.sub(
-            r'\[([^\]]+)\]\(([^)]+)\)',
+            r"\[([^\]]+)\]\(([^)]+)\)",
             r'<a href="\2">\1</a>',
             text,
         )
 
         # Unordered lists
-        text = re.sub(r'^\s*[-*] (.+)$', r'<li>\1</li>', text, flags=re.MULTILINE)
-        text = re.sub(r'(<li>.*</li>\n?)+', r'<ul>\g<0></ul>', text, flags=re.DOTALL)
+        text = re.sub(r"^\s*[-*] (.+)$", r"<li>\1</li>", text, flags=re.MULTILINE)
+        text = re.sub(r"(<li>.*</li>\n?)+", r"<ul>\g<0></ul>", text, flags=re.DOTALL)
 
         # Ordered lists
-        text = re.sub(r'^\s*\d+\. (.+)$', r'<li>\1</li>', text, flags=re.MULTILINE)
+        text = re.sub(r"^\s*\d+\. (.+)$", r"<li>\1</li>", text, flags=re.MULTILINE)
         text = re.sub(
-            r'(<li>.*</li>\n?)+',
-            r'<ol>\g<0></ol>',
+            r"(<li>.*</li>\n?)+",
+            r"<ol>\g<0></ol>",
             text,
             flags=re.DOTALL,
         )
 
         # Blockquotes
-        text = re.sub(r'^&gt; (.+)$', r'<blockquote>\1</blockquote>', text, flags=re.MULTILINE)
+        text = re.sub(r"^&gt; (.+)$", r"<blockquote>\1</blockquote>", text, flags=re.MULTILINE)
 
         # Horizontal rules
-        text = re.sub(r'^---+$', r'<hr>', text, flags=re.MULTILINE)
+        text = re.sub(r"^---+$", r"<hr>", text, flags=re.MULTILINE)
 
         # Paragraphs (double newlines)
         paragraphs = text.split("\n\n")
@@ -145,10 +147,10 @@ class MessageWidget(QFrame):
         self,
         role: str,
         content: str,
-        files: Optional[List[str]] = None,
+        files: list[str] | None = None,
         is_streaming: bool = False,
-        on_tts: Optional[Callable[[str], None]] = None,
-        parent: Optional[QWidget] = None,
+        on_tts: Callable[[str], None] | None = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.role = role
@@ -324,7 +326,7 @@ class MessageWidget(QFrame):
             QTextBrowser li { margin: 2px 0; }
         """
 
-    def _create_file_attachment(self, file_path: str) -> Optional[QWidget]:
+    def _create_file_attachment(self, file_path: str) -> QWidget | None:
         """Create a widget showing an attached file."""
         path = Path(file_path)
         if not path.exists():
@@ -346,7 +348,12 @@ class MessageWidget(QFrame):
         if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
             pixmap = QPixmap(str(path))
             if not pixmap.isNull():
-                scaled = pixmap.scaled(120, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                scaled = pixmap.scaled(
+                    120,
+                    120,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
                 img_label = QLabel()
                 img_label.setPixmap(scaled)
                 img_label.setFixedSize(120, 120)
@@ -370,6 +377,7 @@ class MessageWidget(QFrame):
     def _copy_content(self) -> None:
         """Copy message content to clipboard."""
         from PyQt6.QtGui import QGuiApplication
+
         QGuiApplication.clipboard().setText(self._full_content)
 
     def set_content(self, content: str) -> None:

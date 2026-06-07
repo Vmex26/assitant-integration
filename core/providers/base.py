@@ -6,50 +6,54 @@ including support for tool/function calling and multimodal inputs.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
 class ToolDefinition:
     """Describes a tool/function available to the AI model."""
+
     name: str
     description: str
-    parameters: Dict[str, Any]  # JSON Schema for parameters
+    parameters: dict[str, Any]  # JSON Schema for parameters
 
 
 @dataclass
 class Message:
     """Represents a single message in a conversation."""
+
     role: str  # 'user', 'assistant', 'system', 'tool'
     content: str
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-    tool_call_id: Optional[str] = None
-    name: Optional[str] = None
-    files: List[str] = field(default_factory=list)  # File paths attached
+    tool_calls: list[dict[str, Any]] | None = None
+    tool_call_id: str | None = None
+    name: str | None = None
+    files: list[str] = field(default_factory=list)  # File paths attached
 
 
 @dataclass
 class ProviderResult:
     """Result from a provider model call."""
+
     content: str
-    tool_calls: Optional[List[Dict[str, Any]]] = None
+    tool_calls: list[dict[str, Any]] | None = None
     finish_reason: str = "stop"
-    usage: Optional[Dict[str, int]] = None
+    usage: dict[str, int] | None = None
 
 
 class BaseProvider(ABC):
     """Abstract interface for AI model providers."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.config = config
 
     @abstractmethod
     async def chat(
         self,
-        messages: List[Message],
-        tools: Optional[List[ToolDefinition]] = None,
-        on_stream: Optional[Callable[[str], None]] = None,
+        messages: list[Message],
+        tools: list[ToolDefinition] | None = None,
+        on_stream: Callable[[str], None] | None = None,
     ) -> ProviderResult:
         """Send a chat completion request to the model.
 
@@ -82,7 +86,7 @@ class BaseProvider(ABC):
         """Human-readable provider name."""
         return self.__class__.__name__
 
-    def format_tools(self, tools: List[ToolDefinition]) -> List[Dict[str, Any]]:
+    def format_tools(self, tools: list[ToolDefinition]) -> list[dict[str, Any]]:
         """Convert internal tool definitions to provider-specific format.
         Override in subclass if needed. Base implementation returns raw dicts.
         """

@@ -1,8 +1,8 @@
 """Main application window with sidebar and chat interface."""
 
 import os
+import typing
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QKeySequence
@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMenu,
-    QMenuBar,
     QMessageBox,
     QPushButton,
     QSplitter,
@@ -28,38 +27,39 @@ from core.logger import get_logger
 from core.model_manager import ModelManager
 from core.storage import ConversationStorage
 from core.tools.base import ToolRegistry
-from core.tools.file_tools import ReadFileTool, WriteFileTool, ListDirectoryTool
 from core.tools.command_tools import ExecuteCommandTool, ExecutePythonTool
-from core.tools.search_tools import GlobSearchTool, ContentSearchTool
+from core.tools.file_tools import ListDirectoryTool, ReadFileTool, WriteFileTool
 from core.tools.package_tools import SearchPackageTool, ShowPKGBUILDTool
-from core.tools.web_tools import WebFetchTool, WebSearchTool, DownloadFileTool
+from core.tools.search_tools import ContentSearchTool, GlobSearchTool
+from core.tools.web_tools import DownloadFileTool, WebFetchTool, WebSearchTool
 
 from .chat_widget import ChatWidget
 
 logger = get_logger(__name__)
-from .log_dialog import LogDialog
-from .service_dialog import ServiceDialog
-from .settings_dialog import SettingsDialog
-from .system_panel import SystemHealthPanel
+from .log_dialog import LogDialog  # noqa: E402
+from .service_dialog import ServiceDialog  # noqa: E402
+from .settings_dialog import SettingsDialog  # noqa: E402
+from .system_panel import SystemHealthPanel  # noqa: E402
 
 
 class MainWindow(QMainWindow):
     """Main application window."""
 
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Path | None = None):
         super().__init__()
         self.config = Config(config_path)
         self.model_manager = ModelManager(self.config)
         self.tool_registry = ToolRegistry()
         self.storage = ConversationStorage()
-        self._conversations: Dict[str, Conversation] = {}
-        self._active_conversation_id: Optional[str] = None
+        self._conversations: dict[str, Conversation] = {}
+        self._active_conversation_id: str | None = None
         self._init_tools()
         self._init_ui()
         self._load_saved_conversations()
 
         self._new_conversation()
 
+    @typing.override
     def closeEvent(self, event):
         """Clean up background threads on close."""
         self.chat_widget.cleanup()
@@ -97,7 +97,8 @@ class MainWindow(QMainWindow):
 
     def _save_active_conversation(self) -> None:
         """Persist the current conversation to storage."""
-        conv = self._conversations.get(self._active_conversation_id)
+        conv_id = self._active_conversation_id or ""
+        conv = self._conversations.get(conv_id)
         if conv and len(conv) > 0:
             try:
                 self.storage.save_conversation(conv)
@@ -171,18 +172,21 @@ class MainWindow(QMainWindow):
         info_btn = QPushButton("Info")
         info_btn.setToolTip("Show system information")
         info_btn.setStyleSheet(self._action_btn_style())
-        info_btn.clicked.connect(lambda: self._confirm_and_run(
-            "uname -a; echo '---'; lsb_release -a 2>/dev/null || cat /etc/os-release",
-            "Show system information (OS, kernel, architecture)?"
-        ))
+        info_btn.clicked.connect(
+            lambda: self._confirm_and_run(
+                "uname -a; echo '---'; lsb_release -a 2>/dev/null || cat /etc/os-release",
+                "Show system information (OS, kernel, architecture)?",
+            )
+        )
 
         disk_btn = QPushButton("Disk")
         disk_btn.setToolTip("Show disk usage")
         disk_btn.setStyleSheet(self._action_btn_style())
-        disk_btn.clicked.connect(lambda: self._confirm_and_run(
-            "df -h | head -20",
-            "Show disk usage for all mounted filesystems?"
-        ))
+        disk_btn.clicked.connect(
+            lambda: self._confirm_and_run(
+                "df -h | head -20", "Show disk usage for all mounted filesystems?"
+            )
+        )
 
         log_btn = QPushButton("Logs")
         log_btn.setToolTip("Analyze system logs")
@@ -285,7 +289,9 @@ class MainWindow(QMainWindow):
     def _confirm_and_run(self, command: str, question: str) -> None:
         """Ask confirmation before running a diagnostic."""
         reply = QMessageBox.question(
-            self, "Confirm diagnostic", question,
+            self,
+            "Confirm diagnostic",
+            question,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
@@ -306,8 +312,8 @@ class MainWindow(QMainWindow):
     def _on_service_explain(self, name: str, description: str) -> None:
         """Send a service description to the AI for explanation."""
         self.chat_widget.send_as_user(
-            f"[System Action] Explain what this systemd service does, whether it's safe to disable, "
-            f"and what depends on it:\n\n"
+            f"[System Action] Explain what this systemd service does, "
+            f"whether it's safe to disable, and what depends on it:\n\n"
             f"- **Service:** {name}\n"
             f"- **Description:** {description}\n\n"
             f"Use `systemctl cat {name}.service` or check its unit file if needed."
@@ -383,7 +389,8 @@ class MainWindow(QMainWindow):
         # Model menu
         model_menu = menubar.addMenu("Model")
         for name in ["openai", "anthropic", "ollama", "gemini", "openai_compatible"]:
-            action = QAction(name.capitalize(), self, checkable=True)
+            action = QAction(name.capitalize(), self)
+            action.setCheckable(True)
             action.setChecked(name == self.config.active_provider)
             action.triggered.connect(lambda checked, n=name: self._switch_provider(n))
             model_menu.addAction(action)
@@ -417,7 +424,9 @@ class MainWindow(QMainWindow):
         self.chat_widget.load_conversation(conv)
         self._update_model_indicator()
 
-    def _on_conversation_selected(self, current: Optional[QListWidgetItem], previous: Optional[QListWidgetItem]) -> None:
+    def _on_conversation_selected(
+        self, current: QListWidgetItem | None, previous: QListWidgetItem | None
+    ) -> None:
         """Handle conversation selection change."""
         if current is None:
             return
@@ -453,7 +462,9 @@ class MainWindow(QMainWindow):
         if not conv:
             return
         new_title, ok = QInputDialog.getText(
-            self, "Rename Conversation", "New name:",
+            self,
+            "Rename Conversation",
+            "New name:",
             text=conv.title,
         )
         if ok and new_title.strip():
@@ -468,7 +479,8 @@ class MainWindow(QMainWindow):
         if not conv:
             return
         reply = QMessageBox.question(
-            self, "Delete Conversation",
+            self,
+            "Delete Conversation",
             f'Delete "{conv.title}"?',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
@@ -497,7 +509,8 @@ class MainWindow(QMainWindow):
         provider, error = self.model_manager.switch_provider(name)
         if error:
             QMessageBox.warning(
-                self, "Provider Error",
+                self,
+                "Provider Error",
                 f"Could not switch to {name}:\n\n{error}\n\n"
                 f"Check your API key in Settings (Ctrl+,).\n"
                 f"The app will still work, but this model won't be available until fixed.",
@@ -525,8 +538,9 @@ class MainWindow(QMainWindow):
         if dialog.exec():
             provider, error = self.model_manager.reload_provider()
             if error:
-                QMessageBox.warning(self, "Provider Warning",
-                    f"Provider re-initialization issue:\n\n{error}")
+                QMessageBox.warning(
+                    self, "Provider Warning", f"Provider re-initialization issue:\n\n{error}"
+                )
             self.chat_widget.conversation.system_prompt = self._default_system_prompt()
             self.chat_widget.conversation_updated.emit()
             self._update_model_indicator()
@@ -535,7 +549,8 @@ class MainWindow(QMainWindow):
     def _clear_chat(self) -> None:
         """Clear the current chat."""
         reply = QMessageBox.question(
-            self, "Clear Chat",
+            self,
+            "Clear Chat",
             "Clear the current conversation?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
@@ -545,9 +560,8 @@ class MainWindow(QMainWindow):
     def _save_conversation(self) -> None:
         """Save the current conversation."""
         from PyQt6.QtWidgets import QFileDialog
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Save Conversation", "", "JSON Files (*.json)"
-        )
+
+        path, _ = QFileDialog.getSaveFileName(self, "Save Conversation", "", "JSON Files (*.json)")
         if path:
             self.chat_widget.conversation.save(Path(path))
 
@@ -633,8 +647,9 @@ class MainWindow(QMainWindow):
             f"- Desktop: {desktop} ({session})\n"
             f"- Shell: {shell}\n\n"
             "## Your Role\n"
-            "You are a friendly Linux system assistant. Your primary goal is to help users understand "
-            "and manage their Linux system. The user may be a beginner — explain things clearly, "
+            "You are a friendly Linux system assistant. Your primary goal is "
+            "to help users understand and manage their Linux system. "
+            "The user may be a beginner — explain things clearly, "
             "avoid jargon when possible.\n\n"
             "## How to help\n"
             "- Messages prefixed with `[System Action]` are sent automatically by the software "
@@ -662,8 +677,8 @@ class MainWindow(QMainWindow):
             "- Use the tools available to you proactively — read files, check system state, "
             "search for information\n"
             "- After running a diagnostic or finding an issue, offer the next logical step: "
-            "\"Your disk is at 90% — do you want me to find large files?\" or "
-            "\"There are failed service units — do you want me to check their logs?\"\n"
+            '"Your disk is at 90% — do you want me to find large files?" or '
+            '"There are failed service units — do you want me to check their logs?"\n'
             "- When in doubt, explain your reasoning before taking action\n\n"
             "## Capabilities\n"
             "You can read and write files anywhere on the system using read_file / write_file. "

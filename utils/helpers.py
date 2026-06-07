@@ -8,7 +8,6 @@ and system interaction.
 import os
 import re
 from pathlib import Path
-from typing import List, Optional
 
 
 def truncate_text(text: str, max_length: int = 1000, suffix: str = "...") -> str:
@@ -20,11 +19,11 @@ def truncate_text(text: str, max_length: int = 1000, suffix: str = "...") -> str
 
 def safe_filename(name: str) -> str:
     """Convert a string to a safe filename."""
-    safe = re.sub(r'[^\w\-_. ]', "_", name)
+    safe = re.sub(r"[^\w\-_. ]", "_", name)
     return safe.strip() or "untitled"
 
 
-def format_file_size(size_bytes: int) -> str:
+def format_file_size(size_bytes: float) -> str:
     """Format a file size in human-readable format."""
     for unit in ("B", "KB", "MB", "GB"):
         if size_bytes < 1024:
@@ -33,20 +32,54 @@ def format_file_size(size_bytes: int) -> str:
     return f"{size_bytes:.1f} TB"
 
 
-def get_supported_image_extensions() -> List[str]:
+def get_supported_image_extensions() -> list[str]:
     """Get list of supported image file extensions."""
     return [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"]
 
 
-def get_supported_file_extensions() -> List[str]:
+def get_supported_file_extensions() -> list[str]:
     """Get list of supported document file extensions."""
     return [
-        ".txt", ".md", ".py", ".js", ".ts", ".html", ".css", ".json",
-        ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
-        ".sh", ".bash", ".zsh", ".fish", ".ps1", ".bat", ".cmd",
-        ".c", ".cpp", ".h", ".hpp", ".java", ".kt", ".swift", ".go",
-        ".rs", ".rb", ".php", ".pl", ".lua", ".r", ".sql",
-        ".pdf", ".csv", ".tsv",
+        ".txt",
+        ".md",
+        ".py",
+        ".js",
+        ".ts",
+        ".html",
+        ".css",
+        ".json",
+        ".xml",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".fish",
+        ".ps1",
+        ".bat",
+        ".cmd",
+        ".c",
+        ".cpp",
+        ".h",
+        ".hpp",
+        ".java",
+        ".kt",
+        ".swift",
+        ".go",
+        ".rs",
+        ".rb",
+        ".php",
+        ".pl",
+        ".lua",
+        ".r",
+        ".sql",
+        ".pdf",
+        ".csv",
+        ".tsv",
     ]
 
 
@@ -65,10 +98,10 @@ def is_text_file(file_path: str) -> bool:
         return True
     # Try to detect by reading
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             f.read(1024)
         return True
-    except (UnicodeDecodeError, IOError):
+    except OSError, UnicodeDecodeError:
         return False
 
 
@@ -92,7 +125,11 @@ def format_api_error(error_text: str, provider: str = "API") -> str:
             "The API key does not have permission for this operation. "
             "Check your API key and permissions in Settings (Ctrl+,)."
         )
-    if "401" in error_text or "unauthenticated" in error_lower or "invalid" in error_lower and "key" in error_lower:
+    if (
+        "401" in error_text
+        or "unauthenticated" in error_lower
+        or ("invalid" in error_lower and "key" in error_lower)
+    ):
         return (
             f"**{provider} - Invalid credentials**\n\n"
             "The API key is missing or invalid. "
@@ -109,7 +146,9 @@ def format_api_error(error_text: str, provider: str = "API") -> str:
             f"**{provider} - Request timed out**\n\n"
             "The request took too long to complete. Try again or send a shorter message."
         )
-    if "connection" in error_lower and ("refused" in error_lower or "reset" in error_lower or "error" in error_lower):
+    if "connection" in error_lower and (
+        "refused" in error_lower or "reset" in error_lower or "error" in error_lower
+    ):
         return (
             f"**{provider} - Connection failed**\n\n"
             "Could not connect to the API. Check your internet connection "
@@ -127,7 +166,7 @@ def format_api_error(error_text: str, provider: str = "API") -> str:
     return f"**{provider} - Error**\n\n{first_line}"
 
 
-def find_project_root(path: Optional[str] = None) -> Path:
+def find_project_root(path: str | None = None) -> Path:
     """Find the project root by looking for common markers."""
     start = Path(path or os.getcwd()).resolve()
     markers = [".git", "README.md", "setup.py", "pyproject.toml", "package.json"]

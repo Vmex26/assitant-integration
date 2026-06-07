@@ -1,9 +1,6 @@
 """Settings dialog for configuring providers, themes, and preferences."""
 
-from typing import Any, Dict, Optional
-
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -15,7 +12,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
-    QPushButton,
     QScrollArea,
     QSlider,
     QSpinBox,
@@ -24,14 +20,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.audio import Transcriber
 from core.config import Config
 
 
 class SettingsDialog(QDialog):
     """Application settings dialog with tabs for each configuration section."""
 
-    def __init__(self, config: Config, parent: Optional[QWidget] = None):
+    def __init__(self, config: Config, parent: QWidget | None = None):
         super().__init__(parent)
         self.config = config
         self.setWindowTitle("Settings")
@@ -188,7 +183,9 @@ class SettingsDialog(QDialog):
         provider_group = QGroupBox("Active Provider")
         provider_layout = QFormLayout(provider_group)
         self.provider_combo = QComboBox()
-        self.provider_combo.addItems(["openai", "anthropic", "ollama", "gemini", "openai_compatible"])
+        self.provider_combo.addItems(
+            ["openai", "anthropic", "ollama", "gemini", "openai_compatible"],
+        )
         self.provider_combo.setCurrentText(self.config.active_provider)
         provider_layout.addRow("Default Provider:", self.provider_combo)
         layout.addWidget(provider_group)
@@ -211,14 +208,18 @@ class SettingsDialog(QDialog):
         self.anthro_key.setEchoMode(QLineEdit.EchoMode.Password)
         self.anthro_key.setText(self.config.provider_config("anthropic").get("api_key", ""))
         anthro_layout.addRow("API Key:", self.anthro_key)
-        self.anthro_model = QLineEdit(self.config.provider_config("anthropic").get("model", "claude-sonnet-4-20250514"))
+        self.anthro_model = QLineEdit(
+            self.config.provider_config("anthropic").get("model", "claude-sonnet-4-20250514"),
+        )
         anthro_layout.addRow("Model:", self.anthro_model)
         layout.addWidget(anthro_group)
 
         # Ollama
         ollama_group = QGroupBox("Ollama (Local)")
         ollama_layout = QFormLayout(ollama_group)
-        self.ollama_url = QLineEdit(self.config.provider_config("ollama").get("base_url", "http://localhost:11434"))
+        self.ollama_url = QLineEdit(
+            self.config.provider_config("ollama").get("base_url", "http://localhost:11434")
+        )
         ollama_layout.addRow("Base URL:", self.ollama_url)
         self.ollama_model = QLineEdit(self.config.provider_config("ollama").get("model", "llama3"))
         ollama_layout.addRow("Model:", self.ollama_model)
@@ -231,7 +232,9 @@ class SettingsDialog(QDialog):
         self.gemini_key.setEchoMode(QLineEdit.EchoMode.Password)
         self.gemini_key.setText(self.config.provider_config("gemini").get("api_key", ""))
         gemini_layout.addRow("API Key:", self.gemini_key)
-        self.gemini_model = QLineEdit(self.config.provider_config("gemini").get("model", "gemini-2.0-flash"))
+        self.gemini_model = QLineEdit(
+            self.config.provider_config("gemini").get("model", "gemini-2.0-flash"),
+        )
         gemini_layout.addRow("Model:", self.gemini_model)
         layout.addWidget(gemini_group)
 
@@ -240,10 +243,14 @@ class SettingsDialog(QDialog):
         oai_compat_layout = QFormLayout(oai_compat_group)
         self.oai_compat_key = QLineEdit()
         self.oai_compat_key.setEchoMode(QLineEdit.EchoMode.Password)
-        self.oai_compat_key.setText(self.config.provider_config("openai_compatible").get("api_key", ""))
+        self.oai_compat_key.setText(
+            self.config.provider_config("openai_compatible").get("api_key", ""),
+        )
         oai_compat_layout.addRow("API Key:", self.oai_compat_key)
         self.oai_compat_url = QLineEdit(
-            self.config.provider_config("openai_compatible").get("base_url", "https://api.deepseek.com/v1")
+            self.config.provider_config("openai_compatible").get(
+                "base_url", "https://api.deepseek.com/v1"
+            )
         )
         oai_compat_layout.addRow("Base URL:", self.oai_compat_url)
         self.oai_compat_model = QLineEdit(
@@ -260,9 +267,7 @@ class SettingsDialog(QDialog):
         current_temp = int(self.config.provider_config().get("temperature", 0.7) * 100)
         self.temp_slider.setValue(current_temp)
         self.temp_label = QLabel(f"{current_temp / 100:.1f}")
-        self.temp_slider.valueChanged.connect(
-            lambda v: self.temp_label.setText(f"{v / 100:.1f}")
-        )
+        self.temp_slider.valueChanged.connect(lambda v: self.temp_label.setText(f"{v / 100:.1f}"))
         temp_layout.addRow("Temperature:", self._slider_layout(self.temp_slider, self.temp_label))
         self.max_tokens_spin = QSpinBox()
         self.max_tokens_spin.setRange(256, 128000)
@@ -279,7 +284,7 @@ class SettingsDialog(QDialog):
 
         tools_group = QGroupBox("Enabled Tools")
         tools_layout = QVBoxLayout(tools_group)
-        self.tool_checks: Dict[str, QCheckBox] = {}
+        self.tool_checks: dict[str, QCheckBox] = {}
         for tool_name, enabled in self.config.tools_enabled.items():
             check = QCheckBox(tool_name.replace("_", " ").title())
             check.setChecked(enabled)
@@ -353,8 +358,7 @@ class SettingsDialog(QDialog):
         form.addRow("Compute Type:", self.whisper_compute_combo)
 
         hint = QLabel(
-            "Changes take effect on the next recording.\n"
-            "Model is loaded lazily on first use."
+            "Changes take effect on the next recording.\nModel is loaded lazily on first use."
         )
         hint.setStyleSheet("color: #888; font-size: 11px;")
         group.layout().addWidget(hint)

@@ -4,13 +4,13 @@ import asyncio
 import json
 import os as _os
 import queue
-import threading
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
-
 import threading as _threading
+import typing
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
-from PyQt6.QtCore import QObject, Qt, QTimer, QThread, pyqtSignal
+from PyQt6.QtCore import QObject, Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QKeyEvent
 from PyQt6.QtWidgets import (
     QDialog,
@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.audio import AudioRecorder, TTSEngine, Transcriber
+from core.audio import AudioRecorder, Transcriber, TTSEngine
 from core.config import Config
 from core.conversation import Conversation, Message
 from core.logger import get_logger
@@ -36,7 +36,7 @@ from utils.helpers import format_api_error
 
 logger = get_logger(__name__)
 
-from .message_widget import MessageWidget
+from .message_widget import MessageWidget  # noqa: E402
 
 
 class MessageInput(QPlainTextEdit):
@@ -45,12 +45,12 @@ class MessageInput(QPlainTextEdit):
     send_requested = pyqtSignal()
     files_pasted = pyqtSignal(list)
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setPlaceholderText("Type a message... (Shift+Enter for newline)")
         self.setFont(QFont("sans-serif", 13))
         self.setFixedHeight(60)
-        self._temp_files: List[str] = []
+        self._temp_files: list[str] = []
         self.setStyleSheet("""
             QPlainTextEdit {
                 background-color: #2a2a2a;
@@ -66,6 +66,7 @@ class MessageInput(QPlainTextEdit):
             }
         """)
 
+    @typing.override
     def insertFromMimeData(self, source: Any) -> None:
         """Handle paste events - extract images/files from clipboard."""
         saved_files = []
@@ -87,21 +88,22 @@ class MessageInput(QPlainTextEdit):
 
         if source.hasText():
             from PyQt6.QtCore import QMimeData
+
             text_only = QMimeData()
             text_only.setText(source.text())
             super().insertFromMimeData(text_only)
         else:
             super().insertFromMimeData(source)
 
-    def _save_clipboard_image(self, image: Any) -> Optional[str]:
+    def _save_clipboard_image(self, image: Any) -> str | None:
         """Save a QImage/QPixmap from clipboard to a temp file."""
         import tempfile
+
         from PyQt6.QtGui import QPixmap
+
         try:
             pixmap = QPixmap.fromImage(image) if not isinstance(image, QPixmap) else image
-            tmp = tempfile.NamedTemporaryFile(
-                suffix=".png", delete=False, prefix="clipboard_"
-            )
+            tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False, prefix="clipboard_")
             tmp.close()
             pixmap.save(tmp.name, "PNG")
             self._temp_files.append(tmp.name)
@@ -113,6 +115,7 @@ class MessageInput(QPlainTextEdit):
     def cleanup_temp_files(self) -> None:
         """Remove all temporary files created by this input."""
         import os as _os
+
         for path in self._temp_files:
             try:
                 _os.unlink(path)
@@ -120,10 +123,19 @@ class MessageInput(QPlainTextEdit):
                 pass
         self._temp_files.clear()
 
-    def keyPressEvent(self, event: Optional[QKeyEvent]) -> None:
-        if event and event.key() == Qt.Key.Key_Return and event.modifiers() == Qt.KeyboardModifier.NoModifier:
+    @typing.override
+    def keyPressEvent(self, event: QKeyEvent | None) -> None:
+        if (
+            event
+            and event.key() == Qt.Key.Key_Return
+            and event.modifiers() == Qt.KeyboardModifier.NoModifier
+        ):
             self.send_requested.emit()
-        elif event and event.key() == Qt.Key.Key_Return and event.modifiers() == Qt.KeyboardModifier.ShiftModifier:
+        elif (
+            event
+            and event.key() == Qt.Key.Key_Return
+            and event.modifiers() == Qt.KeyboardModifier.ShiftModifier
+        ):
             super().keyPressEvent(event)
         else:
             super().keyPressEvent(event)
@@ -134,7 +146,7 @@ class AsyncWorker(QObject):
 
     def __init__(self):
         super().__init__()
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
 
     def start(self) -> None:
         """Run the asyncio event loop (called from the QThread)."""
@@ -149,6 +161,7 @@ class AsyncWorker(QObject):
 
     def submit(self, coro) -> Any:
         """Submit a coroutine to the background event loop. Returns a concurrent.futures.Future."""
+        assert self._loop is not None
         return asyncio.run_coroutine_threadsafe(coro, self._loop)
 
     def cancel_all(self) -> None:
@@ -172,15 +185,15 @@ class ChatWidget(QWidget):
         model_manager: ModelManager,
         tool_registry: ToolRegistry,
         conversation: Conversation,
-        config: Optional[Config] = None,
-        parent: Optional[QWidget] = None,
+        config: Config | None = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.model_manager = model_manager
         self.tool_registry = tool_registry
         self.conversation = conversation
         self._config = config
-        self._attached_files: List[str] = []
+        self._attached_files: list[str] = []
         self._is_processing = False
         self._cancel_requested = False
 
@@ -267,7 +280,7 @@ class ChatWidget(QWidget):
         self._show_welcome()
 
         # Thinking indicator
-        self.thinking_label = QLabel("  \u23F3 Assistant is thinking...")
+        self.thinking_label = QLabel("  \u23f3 Assistant is thinking...")
         self.thinking_label.setVisible(False)
         self.thinking_label.setStyleSheet("""
             QLabel {
@@ -517,7 +530,7 @@ class ChatWidget(QWidget):
             self.welcome_label.deleteLater()
             self.welcome_label = None
 
-    def _on_files_pasted(self, files: List[str]) -> None:
+    def _on_files_pasted(self, files: list[str]) -> None:
         """Handle files pasted from clipboard."""
         for f in files:
             if f not in self._attached_files:
@@ -530,7 +543,8 @@ class ChatWidget(QWidget):
             self,
             "Attach Files",
             "",
-            "Supported Files (*.jpg *.jpeg *.png *.gif *.webp *.bmp *.txt *.md *.py *.js *.ts *.html *.css *.json *.xml *.pdf *.csv);;All Files (*)",
+            "Supported Files (*.jpg *.jpeg *.png *.gif *.webp *.bmp "
+            "*.txt *.md *.py *.js *.ts *.html *.css *.json *.xml *.pdf *.csv);;All Files (*)",
         )
         for f in files:
             if f not in self._attached_files:
@@ -602,6 +616,7 @@ class ChatWidget(QWidget):
     async def _request_assistant_widget(self) -> MessageWidget:
         """Create an assistant message widget in the main thread and return it."""
         import concurrent.futures
+
         future: concurrent.futures.Future = concurrent.futures.Future()
 
         def _tts_cb(text: str) -> None:
@@ -625,6 +640,7 @@ class ChatWidget(QWidget):
     async def _request_confirm(self, tool_name: str, args: dict) -> bool:
         """Show confirmation dialog in the main thread and return result."""
         import concurrent.futures
+
         future: concurrent.futures.Future = concurrent.futures.Future()
 
         def _on_main() -> None:
@@ -713,11 +729,13 @@ class ChatWidget(QWidget):
                 break
 
             if result.tool_calls:
-                self._add_conv_message(Message(
-                    role="assistant",
-                    content=result.content,
-                    tool_calls=result.tool_calls,
-                ))
+                self._add_conv_message(
+                    Message(
+                        role="assistant",
+                        content=result.content,
+                        tool_calls=result.tool_calls,
+                    )
+                )
 
                 for tc in result.tool_calls:
                     tool_name = tc["function"]["name"]
@@ -735,12 +753,14 @@ class ChatWidget(QWidget):
                                 f"The user cancelled it from the confirmation dialog.]\n\n"
                                 f"The user chose to cancel the {tool_name} execution."
                             )
-                            self._add_conv_message(Message(
-                                role="tool",
-                                content=tool_result,
-                                tool_call_id=tc.get("id", ""),
-                                name=tool_name,
-                            ))
+                            self._add_conv_message(
+                                Message(
+                                    role="tool",
+                                    content=tool_result,
+                                    tool_call_id=tc.get("id", ""),
+                                    name=tool_name,
+                                )
+                            )
                             self._add_tool_widget("tool", f"**Cancelled:** {tool_name}")
                             continue
 
@@ -755,22 +775,26 @@ class ChatWidget(QWidget):
                         f"{tool_result}"
                     )
 
-                    self._add_conv_message(Message(
-                        role="tool",
-                        content=tool_result_with_note,
-                        tool_call_id=tc.get("id", ""),
-                        name=tool_name,
-                    ))
+                    self._add_conv_message(
+                        Message(
+                            role="tool",
+                            content=tool_result_with_note,
+                            tool_call_id=tc.get("id", ""),
+                            name=tool_name,
+                        )
+                    )
                     self._add_tool_widget("tool", tool_result)
 
                 messages = self.conversation.to_messages()
             else:
                 self._run_in_main(assistant_widget.set_content, result.content)
                 self._run_in_main(self._set_assistant_done, assistant_widget)
-                self._add_conv_message(Message(
-                    role="assistant",
-                    content=result.content,
-                ))
+                self._add_conv_message(
+                    Message(
+                        role="assistant",
+                        content=result.content,
+                    )
+                )
                 break
         else:
             error_text = "Error: Maximum tool call rounds reached."
@@ -791,7 +815,7 @@ class ChatWidget(QWidget):
         self.thinking_label.setVisible(processing)
         if processing:
             self._cancel_requested = False
-            self.thinking_label.setText("  \u23F3 Assistant is thinking...")
+            self.thinking_label.setText("  \u23f3 Assistant is thinking...")
 
     def _scroll_to_bottom(self) -> None:
         """Scroll the message area to the bottom."""
@@ -814,6 +838,7 @@ class ChatWidget(QWidget):
                 return parent.config
             parent = parent.parent()
         from core.config import Config
+
         return Config()
 
     def _flush_main_queue(self) -> None:
@@ -886,15 +911,13 @@ class ChatWidget(QWidget):
         self.welcome_label.setText(
             f'<div style="font-size: 28px; color: #555; margin-top: 80px;">'
             f"Bienvenido {username}"
-            f'</div>'
+            f"</div>"
             f'<div style="font-size: 14px; color: #444;">'
             f"Escribe un mensaje o usa los botones de la barra lateral para comenzar"
             f"</div>"
         )
         self.messages_layout.addWidget(self.welcome_label)
         self.messages_layout.setAlignment(self.welcome_label, Qt.AlignmentFlag.AlignCenter)
-
-
 
     def clear_chat(self) -> None:
         """Clear the chat display and conversation."""
@@ -905,7 +928,7 @@ class ChatWidget(QWidget):
 class _ConfirmDialog(QDialog):
     """Confirmation dialog for command execution."""
 
-    def __init__(self, command: str, tool_name: str, parent: Optional[QWidget] = None):
+    def __init__(self, command: str, tool_name: str, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Confirm Execution")
         self.setMinimumWidth(500)

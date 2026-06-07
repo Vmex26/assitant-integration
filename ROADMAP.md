@@ -37,12 +37,12 @@
 - [ ] Panel de debug opcional (toggle con atajo)
 
 ## Fase 4 — Feature: faster-whisper
-- [ ] Reemplazar `Transcriber` (Google Speech Recognition) por `faster_whisper.WhisperModel`
-- [ ] Config: model size, device (CPU/CUDA/Auto), compute type en Settings
-- [ ] Lazy-load del modelo en primer uso
-- [ ] Transcription en background thread
-- [ ] Añadir `faster-whisper` a `requirements.txt`
-- [ ] Modelo default: `small` (mínimo viable para comandos/URLs)
+- [x] Reemplazar `Transcriber` (Google Speech Recognition) por `faster_whisper.WhisperModel`
+- [x] Config: model size, device (CPU/CUDA/Auto), compute type en Settings
+- [x] Lazy-load del modelo en primer uso
+- [x] Config wire: ChatWidget recibe Config y configura Transcriber al iniciar
+- [x] Añadir `faster-whisper` a `requirements.txt`
+- [x] Modelo default: `small` (mínimo viable para comandos/URLs)
 
 ## Fase 5 — Feature: Call Mode (desde cero)
 - [ ] Bucle asyncio: speak → listen → transcribe (faster-whisper) → AI respond → TTS → loop

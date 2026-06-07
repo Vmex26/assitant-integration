@@ -8,14 +8,14 @@ Usage:
     python main.py
 """
 
-import sys
 import os
+import sys
 
 # Ensure the project root is on the path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import QApplication
 
 from gui.main_window import MainWindow
 

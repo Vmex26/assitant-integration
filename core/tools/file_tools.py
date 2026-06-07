@@ -4,9 +4,8 @@ File system tools for the AI agent.
 Allows the AI to read and write files on the local filesystem.
 """
 
-import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from .base import BaseTool
 
@@ -20,10 +19,13 @@ class ReadFileTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Read the contents of a file at the specified path. Use this to view source code, configuration files, or any text file."
+        return (
+            "Read the contents of a file at the specified path. "
+            "Use this to view source code, configuration files, or any text file."
+        )
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
@@ -53,14 +55,14 @@ class ReadFileTool(BaseTool):
             return f"Error: Not a file: {file_path}"
 
         try:
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
+            with open(path, encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
         except PermissionError:
             return f"Error: Permission denied reading: {file_path}"
 
         total_lines = len(lines)
         if offset > 0:
-            lines = lines[offset - 1:]
+            lines = lines[offset - 1 :]
         if limit > 0:
             lines = lines[:limit]
 
@@ -91,7 +93,7 @@ class WriteFileTool(BaseTool):
         return "Write content to a file. Creates the file and any necessary parent directories."
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
@@ -132,7 +134,7 @@ class ListDirectoryTool(BaseTool):
         return "List files and directories at a given path."
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {

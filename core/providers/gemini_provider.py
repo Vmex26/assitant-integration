@@ -7,7 +7,8 @@ with tool/function calling and image inputs.
 
 import base64
 import json
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from .base import BaseProvider, Message, ProviderResult, ToolDefinition
 
@@ -15,7 +16,7 @@ from .base import BaseProvider, Message, ProviderResult, ToolDefinition
 class GeminiProvider(BaseProvider):
     """Provider for Google Gemini models via the google-genai SDK."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         self.api_key = config.get("api_key", "")
         self.model = config.get("model", "gemini-2.0-flash")
@@ -27,6 +28,7 @@ class GeminiProvider(BaseProvider):
     def client(self):
         if self._client is None:
             from google import genai
+
             self._client = genai.Client(api_key=self.api_key) if self.api_key else None
         return self._client
 
@@ -41,9 +43,9 @@ class GeminiProvider(BaseProvider):
 
     async def chat(
         self,
-        messages: List[Message],
-        tools: Optional[List[ToolDefinition]] = None,
-        on_stream: Optional[Callable[[str], None]] = None,
+        messages: list[Message],
+        tools: list[ToolDefinition] | None = None,
+        on_stream: Callable[[str], None] | None = None,
     ) -> ProviderResult:
         if not self.api_key:
             return ProviderResult(
@@ -93,7 +95,7 @@ class GeminiProvider(BaseProvider):
                     for tc in msg.tool_calls:
                         try:
                             args = json.loads(tc["function"]["arguments"])
-                        except (json.JSONDecodeError, KeyError):
+                        except json.JSONDecodeError, KeyError:
                             args = {}
                         part = genai_types.Part.from_function_call(
                             name=tc["function"]["name"],
@@ -120,7 +122,7 @@ class GeminiProvider(BaseProvider):
         if tools:
             genai_tools = self.format_tools(tools)
 
-        config_kwargs: Dict[str, Any] = {
+        config_kwargs: dict[str, Any] = {
             "temperature": self.temperature,
             "max_output_tokens": self.max_tokens,
         }
@@ -160,15 +162,19 @@ class GeminiProvider(BaseProvider):
                         if tool_calls is None:
                             tool_calls = []
                         sig = part.thought_signature
-                        tool_calls.append({
-                            "id": part.function_call.id,
-                            "type": "function",
-                            "function": {
-                                "name": part.function_call.name,
-                                "arguments": json.dumps(part.function_call.args),
-                            },
-                            "thought_signature": base64.b64encode(sig).decode() if sig else None,
-                        })
+                        tool_calls.append(
+                            {
+                                "id": part.function_call.id,
+                                "type": "function",
+                                "function": {
+                                    "name": part.function_call.name,
+                                    "arguments": json.dumps(part.function_call.args),
+                                },
+                                "thought_signature": base64.b64encode(sig).decode()
+                                if sig
+                                else None,
+                            }
+                        )
             finish = candidate.finish_reason or ""
             if finish == "STOP" or finish == 1:
                 finish_reason = "stop"
@@ -189,12 +195,11 @@ class GeminiProvider(BaseProvider):
 
     async def _stream_chat(
         self,
-        contents: List[Any],
+        contents: list[Any],
         generate_config: Any,
         on_stream: Callable[[str], None],
     ) -> ProviderResult:
         """Handle streaming response from Gemini."""
-        from google.genai import types as genai_types
 
         full_content = ""
         tool_calls = None
@@ -218,15 +223,19 @@ class GeminiProvider(BaseProvider):
                                 if tool_calls is None:
                                     tool_calls = []
                                 sig = part.thought_signature
-                                tool_calls.append({
-                                    "id": part.function_call.name,
-                                    "type": "function",
-                                    "function": {
-                                        "name": part.function_call.name,
-                                        "arguments": json.dumps(part.function_call.args),
-                                    },
-                                    "thought_signature": base64.b64encode(sig).decode() if sig else None,
-                                })
+                                tool_calls.append(
+                                    {
+                                        "id": part.function_call.name,
+                                        "type": "function",
+                                        "function": {
+                                            "name": part.function_call.name,
+                                            "arguments": json.dumps(part.function_call.args),
+                                        },
+                                        "thought_signature": base64.b64encode(sig).decode()
+                                        if sig
+                                        else None,
+                                    }
+                                )
                     if candidate.finish_reason:
                         fr = candidate.finish_reason
                         if fr == 1:
@@ -249,7 +258,6 @@ class GeminiProvider(BaseProvider):
 
     def _encode_media(self, file_path: str) -> Any:
         """Encode a file for multimodal input to Gemini."""
-        import base64
         import mimetypes
 
         from google.genai import types as genai_types
@@ -259,8 +267,10 @@ class GeminiProvider(BaseProvider):
 
         try:
             if ext in image_exts:
-                from PIL import Image
                 import io
+
+                from PIL import Image
+
                 img = Image.open(file_path)
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
@@ -283,7 +293,7 @@ class GeminiProvider(BaseProvider):
         except Exception:
             return None
 
-    def format_tools(self, tools: List[ToolDefinition]) -> List[Any]:
+    def format_tools(self, tools: list[ToolDefinition]) -> list[Any]:
         """Convert internal tool definitions to Gemini function declarations."""
         from google.genai import types as genai_types
 
@@ -293,7 +303,7 @@ class GeminiProvider(BaseProvider):
                 genai_types.FunctionDeclaration(
                     name=t.name,
                     description=t.description,
-                    parameters=t.parameters,
+                    parameters=t.parameters,  # type: ignore[reportArgumentType]
                 )
             )
         return [genai_types.Tool(function_declarations=function_declarations)]

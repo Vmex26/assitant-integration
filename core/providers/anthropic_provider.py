@@ -8,10 +8,10 @@ import base64
 import io
 import json
 import mimetypes
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from anthropic import AsyncAnthropic
-
 from PIL import Image
 
 from .base import BaseProvider, Message, ProviderResult, ToolDefinition
@@ -20,7 +20,7 @@ from .base import BaseProvider, Message, ProviderResult, ToolDefinition
 class AnthropicProvider(BaseProvider):
     """Provider for Anthropic Claude models."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         api_key = config.get("api_key", "")
         self.client = AsyncAnthropic(api_key=api_key)
@@ -39,9 +39,9 @@ class AnthropicProvider(BaseProvider):
 
     async def chat(
         self,
-        messages: List[Message],
-        tools: Optional[List[ToolDefinition]] = None,
-        on_stream: Optional[Callable[[str], None]] = None,
+        messages: list[Message],
+        tools: list[ToolDefinition] | None = None,
+        on_stream: Callable[[str], None] | None = None,
     ) -> ProviderResult:
         system_text = ""
         api_messages = []
@@ -52,16 +52,18 @@ class AnthropicProvider(BaseProvider):
                 continue
 
             if msg.role == "tool":
-                api_messages.append({
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": msg.tool_call_id,
-                            "content": msg.content,
-                        }
-                    ],
-                })
+                api_messages.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": msg.tool_call_id,
+                                "content": msg.content,
+                            }
+                        ],
+                    }
+                )
             elif msg.role == "assistant" and msg.tool_calls:
                 blocks = []
                 if msg.content:
@@ -69,14 +71,16 @@ class AnthropicProvider(BaseProvider):
                 for tc in msg.tool_calls:
                     try:
                         parsed_input = json.loads(tc["function"]["arguments"])
-                    except (json.JSONDecodeError, KeyError):
+                    except json.JSONDecodeError, KeyError:
                         parsed_input = {}
-                    blocks.append({
-                        "type": "tool_use",
-                        "id": tc["id"],
-                        "name": tc["function"]["name"],
-                        "input": parsed_input,
-                    })
+                    blocks.append(
+                        {
+                            "type": "tool_use",
+                            "id": tc["id"],
+                            "name": tc["function"]["name"],
+                            "input": parsed_input,
+                        }
+                    )
                 api_messages.append({"role": "assistant", "content": blocks})
             elif msg.role == "user" and msg.files:
                 blocks = [{"type": "text", "text": msg.content}]
@@ -86,12 +90,14 @@ class AnthropicProvider(BaseProvider):
                         blocks.append(media_block)
                 api_messages.append({"role": "user", "content": blocks})
             else:
-                api_messages.append({
-                    "role": msg.role,
-                    "content": msg.content,
-                })
+                api_messages.append(
+                    {
+                        "role": msg.role,
+                        "content": msg.content,
+                    }
+                )
 
-        kwargs: Dict[str, Any] = {
+        kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": api_messages,
             "temperature": self.temperature,
@@ -119,14 +125,16 @@ class AnthropicProvider(BaseProvider):
             elif block.type == "tool_use":
                 if tool_calls is None:
                     tool_calls = []
-                tool_calls.append({
-                    "id": block.id,
-                    "type": "function",
-                    "function": {
-                        "name": block.name,
-                        "arguments": json.dumps(block.input),
-                    },
-                })
+                tool_calls.append(
+                    {
+                        "id": block.id,
+                        "type": "function",
+                        "function": {
+                            "name": block.name,
+                            "arguments": json.dumps(block.input),
+                        },
+                    }
+                )
 
         return ProviderResult(
             content=content_text,
@@ -140,12 +148,12 @@ class AnthropicProvider(BaseProvider):
 
     async def _stream_chat(
         self,
-        kwargs: Dict[str, Any],
+        kwargs: dict[str, Any],
         on_stream: Callable[[str], None],
     ) -> ProviderResult:
         """Handle streaming response from Anthropic."""
         full_content = ""
-        tool_calls: List[Dict[str, Any]] = []
+        tool_calls: list[dict[str, Any]] = []
 
         async with self.client.messages.stream(**kwargs) as stream:
             async for text in stream.text_stream:
@@ -156,14 +164,16 @@ class AnthropicProvider(BaseProvider):
 
             for block in response.content:
                 if block.type == "tool_use":
-                    tool_calls.append({
-                        "id": block.id,
-                        "type": "function",
-                        "function": {
-                            "name": block.name,
-                            "arguments": json.dumps(block.input),
-                        },
-                    })
+                    tool_calls.append(
+                        {
+                            "id": block.id,
+                            "type": "function",
+                            "function": {
+                                "name": block.name,
+                                "arguments": json.dumps(block.input),
+                            },
+                        }
+                    )
 
         return ProviderResult(
             content=full_content,
@@ -171,7 +181,7 @@ class AnthropicProvider(BaseProvider):
             finish_reason=response.stop_reason or "stop",
         )
 
-    def _encode_media(self, file_path: str) -> Optional[Dict[str, Any]]:
+    def _encode_media(self, file_path: str) -> dict[str, Any] | None:
         """Encode a file for multimodal input."""
 
         file_ext = file_path.lower().rsplit(".", 1)[-1] if "." in file_path else ""
@@ -220,7 +230,7 @@ class AnthropicProvider(BaseProvider):
                 return None
         return None
 
-    def format_tools(self, tools: List[ToolDefinition]) -> List[Dict[str, Any]]:
+    def format_tools(self, tools: list[ToolDefinition]) -> list[dict[str, Any]]:
         return [
             {
                 "name": t.name,

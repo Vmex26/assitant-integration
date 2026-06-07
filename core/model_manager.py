@@ -5,29 +5,29 @@ Handles provider instantiation, switching, and lifecycle.
 """
 
 import traceback
-from typing import Any, Dict, Optional, Tuple, Type
 
 from core.config import Config
 from core.logger import get_logger
-from core.providers.base import BaseProvider
-from core.providers.openai_provider import OpenAIProvider
 from core.providers.anthropic_provider import AnthropicProvider
-from core.providers.ollama_provider import OllamaProvider
+from core.providers.base import BaseProvider
 from core.providers.gemini_provider import GeminiProvider
+from core.providers.ollama_provider import OllamaProvider
 from core.providers.openai_compatible_provider import OpenAICompatibleProvider
+from core.providers.openai_provider import OpenAIProvider
 
 logger = get_logger(__name__)
 
 
 class ProviderError(Exception):
     """Raised when a provider fails to initialize or operate."""
+
     pass
 
 
 class ModelManager:
     """Manages AI model provider instances."""
 
-    _providers: Dict[str, Type[BaseProvider]] = {
+    _providers: dict[str, type[BaseProvider]] = {
         "openai": OpenAIProvider,
         "anthropic": AnthropicProvider,
         "ollama": OllamaProvider,
@@ -37,19 +37,19 @@ class ModelManager:
 
     def __init__(self, config: Config):
         self.config = config
-        self._instances: Dict[str, BaseProvider] = {}
+        self._instances: dict[str, BaseProvider] = {}
 
     @classmethod
-    def register_provider(cls, name: str, provider_cls: Type[BaseProvider]) -> None:
+    def register_provider(cls, name: str, provider_cls: type[BaseProvider]) -> None:
         """Register a new provider type (plugin system)."""
         cls._providers[name] = provider_cls
 
     @classmethod
-    def available_providers(cls) -> Dict[str, Type[BaseProvider]]:
+    def available_providers(cls) -> dict[str, type[BaseProvider]]:
         """Get all registered provider types."""
         return dict(cls._providers)
 
-    def get_provider(self, name: Optional[str] = None) -> Tuple[Optional[BaseProvider], Optional[str]]:
+    def get_provider(self, name: str | None = None) -> tuple[BaseProvider | None, str | None]:
         """Get or create a provider instance by name.
 
         Returns (provider, None) on success, or (None, error_message) on failure.
@@ -58,7 +58,8 @@ class ModelManager:
         if provider_name not in self._instances:
             provider_cls = self._providers.get(provider_name)
             if not provider_cls:
-                return None, f"Unknown provider: {provider_name}. Available: {list(self._providers.keys())}"
+                avail = list(self._providers.keys())
+                return None, f"Unknown provider: {provider_name}. Available: {avail}"
             provider_config = self.config.provider_config(provider_name)
             try:
                 self._instances[provider_name] = provider_cls(provider_config)
@@ -68,7 +69,7 @@ class ModelManager:
                 return None, error_msg
         return self._instances[provider_name], None
 
-    def switch_provider(self, name: str) -> Tuple[Optional[BaseProvider], Optional[str]]:
+    def switch_provider(self, name: str) -> tuple[BaseProvider | None, str | None]:
         """Switch the active provider and return its instance.
 
         Returns (provider, None) on success, or (None, error_message) on failure.
@@ -78,7 +79,7 @@ class ModelManager:
         self.config.active_provider = name
         return self.get_provider(name)
 
-    def reload_provider(self, name: Optional[str] = None) -> Tuple[Optional[BaseProvider], Optional[str]]:
+    def reload_provider(self, name: str | None = None) -> tuple[BaseProvider | None, str | None]:
         """Force reload a provider's configuration."""
         provider_name = name or self.config.active_provider
         self._instances.pop(provider_name, None)

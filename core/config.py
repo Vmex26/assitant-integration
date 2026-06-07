@@ -6,9 +6,8 @@ such as API keys, model preferences, and UI settings.
 """
 
 import json
-import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from core.logger import get_logger, set_verbose
 
@@ -21,14 +20,14 @@ DEFAULT_CONFIG_PATH = Path.home() / ".ai_assistant" / "config.json"
 class Config:
     """Manages application configuration with JSON persistence."""
 
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Path | None = None):
         self.config_path = config_path or DEFAULT_CONFIG_PATH
-        self._data: Dict[str, Any] = self._defaults()
+        self._data: dict[str, Any] = self._defaults()
         self._load()
         set_verbose(self.verbose)
 
     @staticmethod
-    def _defaults() -> Dict[str, Any]:
+    def _defaults() -> dict[str, Any]:
         return {
             "providers": {
                 "openai": {
@@ -92,10 +91,10 @@ class Config:
         """Load configuration from disk, merging with defaults."""
         if self.config_path.exists():
             try:
-                with open(self.config_path, "r") as f:
+                with open(self.config_path) as f:
                     loaded = json.load(f)
                 self._deep_merge(self._data, loaded)
-            except (json.JSONDecodeError, IOError):
+            except OSError, json.JSONDecodeError:
                 pass
 
     def save(self) -> None:
@@ -105,7 +104,7 @@ class Config:
             json.dump(self._data, f, indent=2)
 
     @staticmethod
-    def _deep_merge(base: Dict, override: Dict) -> None:
+    def _deep_merge(base: dict, override: dict) -> None:
         """Recursively merge override dict into base dict."""
         for key, value in override.items():
             if key in base and isinstance(base[key], dict) and isinstance(value, dict):
@@ -149,7 +148,7 @@ class Config:
         self._data["active_provider"] = name
         self.save()
 
-    def provider_config(self, name: Optional[str] = None) -> Dict[str, Any]:
+    def provider_config(self, name: str | None = None) -> dict[str, Any]:
         """Get configuration for a specific provider."""
         provider = name or self.active_provider
         return self._data.get("providers", {}).get(provider, {})
@@ -223,7 +222,7 @@ class Config:
         return self._data.get("max_history", 100)
 
     @property
-    def tools_enabled(self) -> Dict[str, bool]:
+    def tools_enabled(self) -> dict[str, bool]:
         return self._data.get("tools_enabled", {})
 
     def is_tool_enabled(self, tool_name: str) -> bool:

@@ -10,7 +10,7 @@ import threading
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import uuid4
 
 from core.providers.base import Message
@@ -19,13 +19,14 @@ from core.providers.base import Message
 @dataclass
 class ConversationEntry:
     """A single entry in conversation history with metadata."""
+
     id: str
     role: str
     content: str
     timestamp: str
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-    tool_call_id: Optional[str] = None
-    files: List[str] = field(default_factory=list)
+    tool_calls: list[dict[str, Any]] | None = None
+    tool_call_id: str | None = None
+    files: list[str] = field(default_factory=list)
     tokens: int = 0
 
 
@@ -36,7 +37,7 @@ class Conversation:
         self.id = str(uuid4())[:8]
         self.system_prompt = system_prompt
         self.max_history = max_history
-        self.entries: List[ConversationEntry] = []
+        self.entries: list[ConversationEntry] = []
         self.created_at = datetime.now().isoformat()
         self.title = "New conversation"
         self._lock = threading.Lock()
@@ -81,12 +82,15 @@ class Conversation:
             # If we removed a tool call, also remove the corresponding result
             if removed.tool_calls:
                 self.entries = [
-                    e for e in self.entries
-                    if not (e.role == "tool" and e.tool_call_id in
-                            [tc.get("id") for tc in removed.tool_calls])
+                    e
+                    for e in self.entries
+                    if not (
+                        e.role == "tool"
+                        and e.tool_call_id in [tc.get("id") for tc in removed.tool_calls]
+                    )
                 ]
 
-    def to_messages(self) -> List[Message]:
+    def to_messages(self) -> list[Message]:
         """Convert history to list of Message objects for the provider."""
         with self._lock:
             entries = list(self.entries)
@@ -94,16 +98,18 @@ class Conversation:
         if self.system_prompt:
             messages.append(Message(role="system", content=self.system_prompt))
         for entry in entries:
-            messages.append(Message(
-                role=entry.role,
-                content=entry.content,
-                tool_calls=entry.tool_calls,
-                tool_call_id=entry.tool_call_id,
-                files=entry.files,
-            ))
+            messages.append(
+                Message(
+                    role=entry.role,
+                    content=entry.content,
+                    tool_calls=entry.tool_calls,
+                    tool_call_id=entry.tool_call_id,
+                    files=entry.files,
+                )
+            )
         return messages
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize conversation to dictionary."""
         return {
             "id": self.id,
@@ -114,7 +120,7 @@ class Conversation:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Conversation":
+    def from_dict(cls, data: dict[str, Any]) -> Conversation:
         """Deserialize conversation from dictionary."""
         conv = cls(
             system_prompt=data.get("system_prompt", ""),
@@ -135,9 +141,9 @@ class Conversation:
             json.dump(self.to_dict(), f, indent=2)
 
     @classmethod
-    def load(cls, path: Path) -> "Conversation":
+    def load(cls, path: Path) -> Conversation:
         """Load conversation from a JSON file."""
-        with open(path, "r") as f:
+        with open(path) as f:
             data = json.load(f)
         return cls.from_dict(data)
 
@@ -150,7 +156,7 @@ class Conversation:
         with self._lock:
             return len(self.entries)
 
-    def last_message(self) -> Optional[ConversationEntry]:
+    def last_message(self) -> ConversationEntry | None:
         """Get the last message in the conversation."""
         with self._lock:
             return self.entries[-1] if self.entries else None

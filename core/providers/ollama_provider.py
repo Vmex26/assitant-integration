@@ -5,7 +5,8 @@ Supports local models served via Ollama with tool calling support.
 """
 
 import json
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 import httpx
 
@@ -15,7 +16,7 @@ from .base import BaseProvider, Message, ProviderResult, ToolDefinition
 class OllamaProvider(BaseProvider):
     """Provider for locally-hosted Ollama models."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         self.base_url = config.get("base_url", "http://localhost:11434").rstrip("/")
         self.model = config.get("model", "llama3")
@@ -33,19 +34,21 @@ class OllamaProvider(BaseProvider):
 
     async def chat(
         self,
-        messages: List[Message],
-        tools: Optional[List[ToolDefinition]] = None,
-        on_stream: Optional[Callable[[str], None]] = None,
+        messages: list[Message],
+        tools: list[ToolDefinition] | None = None,
+        on_stream: Callable[[str], None] | None = None,
     ) -> ProviderResult:
         ollama_messages = []
         for msg in messages:
             if msg.role == "tool":
-                ollama_messages.append({
-                    "role": "tool",
-                    "content": msg.content,
-                })
+                ollama_messages.append(
+                    {
+                        "role": "tool",
+                        "content": msg.content,
+                    }
+                )
             elif msg.role == "assistant" and msg.tool_calls:
-                assistant_msg: Dict[str, Any] = {
+                assistant_msg: dict[str, Any] = {
                     "role": "assistant",
                     "content": msg.content or "",
                 }
@@ -54,40 +57,48 @@ class OllamaProvider(BaseProvider):
                     for tc in msg.tool_calls:
                         try:
                             args = json.loads(tc["function"]["arguments"])
-                        except (json.JSONDecodeError, KeyError):
+                        except json.JSONDecodeError, KeyError:
                             args = {}
-                        calls.append({
-                            "function": {
-                                "name": tc["function"]["name"],
-                                "arguments": args,
-                            },
-                        })
+                        calls.append(
+                            {
+                                "function": {
+                                    "name": tc["function"]["name"],
+                                    "arguments": args,
+                                },
+                            }
+                        )
                     if calls:
                         assistant_msg["tool_calls"] = calls
                 ollama_messages.append(assistant_msg)
             elif msg.role == "user" and msg.files:
-                content_parts: List[Dict[str, Any]] = [
-                    {"type": "text", "text": msg.content}
-                ]
+                content_parts: list[dict[str, Any]] = [{"type": "text", "text": msg.content}]
                 for file_path in msg.files:
                     image_data = self._encode_image(file_path)
                     if image_data:
-                        content_parts.append({
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{image_data}"},
-                        })
-                ollama_messages.append({
-                    "role": "user",
-                    "content": msg.content,
-                    "images": [self._encode_image(f) for f in msg.files if self._encode_image(f)],
-                })
+                        content_parts.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:image/jpeg;base64,{image_data}"},
+                            }
+                        )
+                ollama_messages.append(
+                    {
+                        "role": "user",
+                        "content": msg.content,
+                        "images": [
+                            self._encode_image(f) for f in msg.files if self._encode_image(f)
+                        ],
+                    }
+                )
             else:
-                ollama_messages.append({
-                    "role": msg.role,
-                    "content": msg.content,
-                })
+                ollama_messages.append(
+                    {
+                        "role": msg.role,
+                        "content": msg.content,
+                    }
+                )
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "messages": ollama_messages,
             "options": {
@@ -115,14 +126,16 @@ class OllamaProvider(BaseProvider):
         if "message" in data and "tool_calls" in data["message"]:
             tool_calls = []
             for tc in data["message"]["tool_calls"]:
-                tool_calls.append({
-                    "id": tc.get("id", ""),
-                    "type": "function",
-                    "function": {
-                        "name": tc["function"]["name"],
-                        "arguments": json.dumps(tc["function"]["arguments"]),
-                    },
-                })
+                tool_calls.append(
+                    {
+                        "id": tc.get("id", ""),
+                        "type": "function",
+                        "function": {
+                            "name": tc["function"]["name"],
+                            "arguments": json.dumps(tc["function"]["arguments"]),
+                        },
+                    }
+                )
 
         content = data.get("message", {}).get("content", "")
 
@@ -135,7 +148,7 @@ class OllamaProvider(BaseProvider):
     async def _stream_chat(
         self,
         client: httpx.AsyncClient,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         on_stream: Callable[[str], None],
     ) -> ProviderResult:
         """Handle streaming response from Ollama."""
@@ -161,14 +174,16 @@ class OllamaProvider(BaseProvider):
                         if tool_calls is None:
                             tool_calls = []
                         for tc in msg["tool_calls"]:
-                            tool_calls.append({
-                                "id": tc.get("id", ""),
-                                "type": "function",
-                                "function": {
-                                    "name": tc["function"]["name"],
-                                    "arguments": json.dumps(tc["function"]["arguments"]),
-                                },
-                            })
+                            tool_calls.append(
+                                {
+                                    "id": tc.get("id", ""),
+                                    "type": "function",
+                                    "function": {
+                                        "name": tc["function"]["name"],
+                                        "arguments": json.dumps(tc["function"]["arguments"]),
+                                    },
+                                }
+                            )
 
         return ProviderResult(
             content=full_content,
@@ -177,12 +192,15 @@ class OllamaProvider(BaseProvider):
         )
 
     @staticmethod
-    def _encode_image(file_path: str) -> Optional[str]:
+    def _encode_image(file_path: str) -> str | None:
         """Encode an image file to base64 for multimodal input."""
         import base64
+
         try:
-            from PIL import Image
             import io
+
+            from PIL import Image
+
             img = Image.open(file_path)
             if img.mode in ("RGBA", "P"):
                 img = img.convert("RGB")
@@ -193,7 +211,7 @@ class OllamaProvider(BaseProvider):
         except Exception:
             return None
 
-    def format_tools(self, tools: List[ToolDefinition]) -> List[Dict[str, Any]]:
+    def format_tools(self, tools: list[ToolDefinition]) -> list[dict[str, Any]]:
         return [
             {
                 "function": {
