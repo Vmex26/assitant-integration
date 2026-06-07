@@ -14,11 +14,11 @@
 - [x] Bug 7: `openai_provider.py` / `openai_compatible_provider.py` — `chunk` undefined en stream vacío
 
 ## Fase 1 — Thread safety + Qt hierarchy (high severity)
-- [ ] Bug 8: `audio.py:64,92,132` — `_check_silence` sin lock, `TTSEngine._is_speaking` sin lock, temp file leak
-- [ ] Bug 9: `storage.py:79` — itera `conv.entries` sin `conv._lock`
-- [ ] Bug 10: `conversation.py:127` — `from_dict` añade entries sin lock
-- [ ] Bug 11: `message_widget.py:35` — `_adjust_height` timer racea con `deleteLater()`
-- [ ] Bug 12: `chat_widget.py:819` — `_rebuild_messages` deferred delete racea con streaming height adjustments
+- [x] Bug 8: `audio.py` — `_check_silence` con lock, `TTSEngine._is_speaking` con `_speak_lock`, temp file cleanup en transcription thread
+- [x] Bug 9: `storage.py:79` — itera `conv.entries` con `conv._lock`
+- [x] Bug 10: `conversation.py:127` — `from_dict` añade entries con `conv._lock`
+- [x] Bug 11: `message_widget.py:35` — `_adjust_height` con `sipIsDeleted()` check
+- [x] Bug 12: `chat_widget.py:819` — `_rebuild_messages` con `setParent(None)` en vez de `deleteLater()`
 
 ## Fase 2 — Medium/Low severity + mejoras
 - [ ] Bug 13: `anthropic_provider.py:186-191` — código duplicado de image processing

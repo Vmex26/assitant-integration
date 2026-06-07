@@ -50,6 +50,8 @@ class MarkdownTextBrowser(QTextBrowser):
     def _adjust_height(self) -> None:
         """Auto-resize to fit content."""
         try:
+            if self.sipIsDeleted():
+                return
             w = self.viewport().width()
             if w > 0:
                 self.document().setTextWidth(w)

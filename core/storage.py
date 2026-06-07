@@ -76,7 +76,9 @@ class ConversationStorage:
                 )
 
                 conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conv.id,))
-                for entry in conv.entries:
+                with conv._lock:
+                    entries = list(conv.entries)
+                for entry in entries:
                     conn.execute(
                         """INSERT INTO messages
                            (id, conversation_id, role, content, timestamp,

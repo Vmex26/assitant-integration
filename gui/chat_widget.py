@@ -841,10 +841,11 @@ class ChatWidget(QWidget):
 
     def _rebuild_messages(self) -> None:
         """Rebuild the message display from conversation history."""
+        # Clear existing widgets immediately (not via deleteLater)
         while self.messages_layout.count():
             item = self.messages_layout.takeAt(0)
             if item and item.widget():
-                item.widget().deleteLater()
+                item.widget().setParent(None)
 
         if not self.conversation.entries:
             self._show_welcome()
@@ -866,7 +867,7 @@ class ChatWidget(QWidget):
         self._scroll_to_bottom()
 
     def _show_welcome(self) -> None:
-        """Show the welcome label."""
+        """Show the welcome label in the current layout."""
         self.welcome_label = QLabel()
         self.welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.welcome_label.setWordWrap(True)
@@ -881,6 +882,8 @@ class ChatWidget(QWidget):
         )
         self.messages_layout.addWidget(self.welcome_label)
         self.messages_layout.setAlignment(self.welcome_label, Qt.AlignmentFlag.AlignCenter)
+
+
 
     def clear_chat(self) -> None:
         """Clear the chat display and conversation."""

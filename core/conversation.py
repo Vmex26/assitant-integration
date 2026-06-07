@@ -123,8 +123,9 @@ class Conversation:
         conv.id = data.get("id", conv.id)
         conv.title = data.get("title", "Restored conversation")
         conv.created_at = data.get("created_at", conv.created_at)
-        for entry_data in data.get("entries", []):
-            conv.entries.append(ConversationEntry(**entry_data))
+        with conv._lock:
+            for entry_data in data.get("entries", []):
+                conv.entries.append(ConversationEntry(**entry_data))
         return conv
 
     def save(self, path: Path) -> None:

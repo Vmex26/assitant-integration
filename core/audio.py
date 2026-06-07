@@ -61,7 +61,10 @@ class AudioRecorder:
 
     def _check_silence(self) -> None:
         """Background thread that stops recording after sustained silence."""
-        while self._is_recording and not self._stop_event.is_set():
+        while not self._stop_event.is_set():
+            with self._lock:
+                if not self._is_recording:
+                    break
             if time.time() - self._last_sound_time > self._silence_timeout:
                 self._finalize()
                 break
@@ -124,6 +127,7 @@ class TTSEngine:
         self._max_chars = 2000
         self._is_speaking = False
         self._stop_event = threading.Event()
+        self._speak_lock = threading.Lock()
 
     @property
     def is_speaking(self) -> bool:
@@ -131,10 +135,11 @@ class TTSEngine:
 
     def speak(self, text: str, voice: str = "es-MX-DaliaNeural") -> None:
         """Speak text in a background thread."""
-        if self._is_speaking:
-            return
+        with self._speak_lock:
+            if self._is_speaking:
+                return
+            self._is_speaking = True
         self._stop_event.clear()
-        self._is_speaking = True
         truncated = text[:self._max_chars]
         threading.Thread(target=self._do_speak, args=(truncated, voice), daemon=True).start()
 
@@ -153,7 +158,8 @@ class TTSEngine:
         except Exception as e:
             print(f"TTS error: {e}")
         finally:
-            self._is_speaking = False
+            with self._speak_lock:
+                self._is_speaking = False
 
     def _play_audio(self, path: str) -> None:
         try:
@@ -167,4 +173,5 @@ class TTSEngine:
     def stop(self) -> None:
         self._stop_event.set()
         sd.stop()
-        self._is_speaking = False
+        with self._speak_lock:
+            self._is_speaking = False

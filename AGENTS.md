@@ -47,7 +47,7 @@ Each implements `BaseProvider.chat(messages, tools, on_stream)`:
 
 ### UI Patterns
 - **MessageWidget**: `QTextBrowser` with custom markdown→HTML conversion. `_adjust_height()` via `QTimer.singleShot(0)` to fit content after layout.
-- **`_rebuild_messages`**: Clears all items from `messages_layout` with `takeAt(0)` + `deleteLater()`, then rebuilds from `conversation.entries`.
+- **`_rebuild_messages`**: Clears all items from `messages_layout` with `takeAt(0)` + `setParent(None)` (immediate deletion), then rebuilds from `conversation.entries`.
 - **`_remove_welcome`**: Calls `deleteLater()` on the welcome label, replaces with empty `QLabel()`.
 - **`conversation_updated`** pyqtSignal connected to `_save_active_conversation` in MainWindow.
 
