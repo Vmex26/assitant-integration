@@ -1,0 +1,19 @@
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.basedpyright]
+typeCheckingMode = "standard"
+pythonVersion = "3.14"
+
+# PyQt6 stubs are incomplete — suppress noisy but harmless diagnostics
+reportAttributeAccessIssue = "warning"
+reportOptionalMemberAccess = "warning"
+reportOptionalCall = "warning"
+reportIncompatibleMethodOverride = "warning"
+reportPossiblyUnboundVariable = "warning"
+reportAssignmentType = "warning"
+reportArgumentType = "warning"

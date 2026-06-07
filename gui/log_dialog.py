@@ -8,13 +8,10 @@ from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
-    QDialogButtonBox,
     QHBoxLayout,
     QLabel,
     QPlainTextEdit,
     QPushButton,
-    QRadioButton,
-    QSizePolicy,
     QVBoxLayout,
 )
 

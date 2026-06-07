@@ -11,8 +11,17 @@
 ./run.sh                          # Launch GUI (requires display)
 source venv/bin/activate && python3 main.py
 ```
-- No test framework, no linter, no typechecker configured.
-- All verification is manual — launch app, send a message, watch for crashes.
+
+### Pre-commit verification (automatic via pre-commit hooks)
+```bash
+source venv/bin/activate && pre-commit run --all-files
+```
+
+### Manual verification (same as pre-commit but explicit)
+```bash
+source venv/bin/activate && ruff check . && ruff format . --check && basedpyright . && python -m pytest tests/ -v
+```
+
 - After each phase, test: (1) app starts without crash, (2) send a text message, (3) verify no console errors.
 
 ## Architecture Overview

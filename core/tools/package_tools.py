@@ -6,7 +6,6 @@ For AUR packages, provides PKGBUILD inspection before installation.
 """
 
 import subprocess
-from typing import Any, Dict, Optional
 
 from .base import BaseTool
 
@@ -52,7 +51,9 @@ class SearchPackageTool(BaseTool):
         try:
             result = subprocess.run(
                 ["pacman", "-Ss", query],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             if result.returncode != 0:
                 return f"Search failed: {result.stderr.strip()}"
@@ -82,7 +83,9 @@ class SearchPackageTool(BaseTool):
         try:
             result = subprocess.run(
                 ["apt-cache", "search", query],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             if result.returncode != 0:
                 return f"Search failed: {result.stderr.strip()}"
@@ -100,7 +103,9 @@ class SearchPackageTool(BaseTool):
         try:
             result = subprocess.run(
                 ["dnf", "search", query],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             if result.returncode != 0:
                 return f"Search failed: {result.stderr.strip()}"
@@ -119,7 +124,12 @@ class ShowPKGBUILDTool(BaseTool):
     """Fetch and display a PKGBUILD from the AUR."""
 
     name = "show_pkgbuild"
-    description = "Fetch detailed info and PKGBUILD source for an AUR package. Only works for AUR packages (not official repos). Use this to audit a package before installing it — it shows maintainer, votes, popularity, dependencies, and the full PKGBUILD content."
+    description = (
+        "Fetch detailed info and PKGBUILD source for an AUR package. "
+        "Only works for AUR packages (not official repos). "
+        "Use this to audit a package before installing it — "
+        "it shows maintainer, votes, popularity, dependencies, and the full PKGBUILD content."
+    )
     parameters = {
         "type": "object",
         "properties": {
@@ -133,6 +143,7 @@ class ShowPKGBUILDTool(BaseTool):
 
     async def execute(self, package: str, **kwargs) -> str:
         import httpx
+
         rpc_url = f"https://aur.archlinux.org/rpc/v5/info/{package}"
         try:
             async with httpx.AsyncClient(timeout=15) as client:
@@ -172,7 +183,7 @@ class ShowPKGBUILDTool(BaseTool):
                     pkgbuild = resp.text
                     lines.append(f"```bash\n{pkgbuild}\n```")
                 else:
-                    lines.append(f"(could not fetch PKGBUILD source)")
+                    lines.append("(could not fetch PKGBUILD source)")
         except Exception as e:
             lines.append(f"(error fetching PKGBUILD: {e})")
 

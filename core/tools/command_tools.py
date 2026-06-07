@@ -7,7 +7,7 @@ with the terminal environment.
 
 import asyncio
 import shlex
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .base import BaseTool
 
@@ -21,10 +21,13 @@ class ExecuteCommandTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Execute a shell command and return its stdout and stderr. Use this to run scripts, compile code, or interact with the system."
+        return (
+            "Execute a shell command and return its stdout and stderr. "
+            "Use this to run scripts, compile code, or interact with the system."
+        )
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
@@ -34,7 +37,7 @@ class ExecuteCommandTool(BaseTool):
                 },
                 "workdir": {
                     "type": "string",
-                    "description": "Working directory for command execution (default: current directory)",
+                    "description": "Working directory (default: current directory)",
                 },
                 "timeout": {
                     "type": "integer",
@@ -46,7 +49,7 @@ class ExecuteCommandTool(BaseTool):
         }
 
     @staticmethod
-    async def _get_sudo_password(command: str) -> Optional[str]:
+    async def _get_sudo_password(command: str) -> str | None:
         """Show a KDE password dialog and return the password, or None if cancelled."""
         for dialog_cmd in ("kdialog", "zenity"):
             try:
@@ -54,22 +57,26 @@ class ExecuteCommandTool(BaseTool):
                 if dialog_cmd == "kdialog":
                     args = ["kdialog", "--password", f"Sudo password needed for:\n{command}"]
                 else:
-                    args = ["zenity", "--entry", "--hide-text",
-                            "--title", "Sudo Password",
-                            "--text", f"Sudo password needed for:\n{command}"]
+                    args = [
+                        "zenity",
+                        "--entry",
+                        "--hide-text",
+                        "--title",
+                        "Sudo Password",
+                        "--text",
+                        f"Sudo password needed for:\n{command}",
+                    ]
                 process = await asyncio.create_subprocess_exec(
                     *args,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=120
-                )
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=120)
                 if process.returncode == 0 and stdout:
                     pw = stdout.decode().strip()
                     if pw:
                         return pw
-            except (FileNotFoundError, asyncio.TimeoutError):
+            except TimeoutError, FileNotFoundError:
                 continue
         return None
 
@@ -89,7 +96,7 @@ class ExecuteCommandTool(BaseTool):
             actual_cmd = command.strip()
             for prefix in ("sudo ", "sudo"):
                 if actual_cmd.startswith(prefix):
-                    actual_cmd = actual_cmd[len(prefix):].strip()
+                    actual_cmd = actual_cmd[len(prefix) :].strip()
                     break
             command = f"sudo -S {actual_cmd}"
 
@@ -107,7 +114,7 @@ class ExecuteCommandTool(BaseTool):
                 stdout, stderr = await asyncio.wait_for(
                     process.communicate(input=stdin_data), timeout=timeout
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 process.kill()
                 await process.wait()
                 return f"Error: Command timed out after {timeout} seconds:\n```\n{command}\n```"
@@ -144,10 +151,13 @@ class ExecutePythonTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Execute Python code and return its output. Use this for quick calculations, data analysis, or testing snippets."
+        return (
+            "Execute Python code and return its output. "
+            "Use this for quick calculations, data analysis, or testing snippets."
+        )
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
@@ -162,16 +172,16 @@ class ExecutePythonTool(BaseTool):
     async def execute(self, code: str) -> str:
         try:
             process = await asyncio.create_subprocess_exec(
-                "python3", "-c", code,
+                "python3",
+                "-c",
+                code,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
 
             try:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=30
-                )
-            except asyncio.TimeoutError:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+            except TimeoutError:
                 process.kill()
                 await process.wait()
                 return "Error: Python execution timed out after 30 seconds"

@@ -5,10 +5,9 @@ Allows the AI to search through codebases using glob patterns
 and content search (grep-like functionality).
 """
 
-import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .base import BaseTool
 
@@ -22,10 +21,12 @@ class GlobSearchTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Search for files matching a glob pattern. Use this to find files by name or extension."
+        return (
+            "Search for files matching a glob pattern. Use this to find files by name or extension."
+        )
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
@@ -85,10 +86,13 @@ class ContentSearchTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Search file contents using a regular expression. Use this to find code patterns, function definitions, or specific text across files."
+        return (
+            "Search file contents using a regular expression. "
+            "Use this to find code patterns, function definitions, or specific text across files."
+        )
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
@@ -113,7 +117,9 @@ class ContentSearchTool(BaseTool):
             "required": ["pattern"],
         }
 
-    async def execute(self, pattern: str, include: str = "", path: str = "", max_results: int = 50) -> str:
+    async def execute(
+        self, pattern: str, include: str = "", path: str = "", max_results: int = 50
+    ) -> str:
         search_path = Path(path).expanduser().resolve() if path else Path.cwd()
         if not search_path.exists():
             return f"Error: Path not found: {path}"
@@ -123,14 +129,17 @@ class ContentSearchTool(BaseTool):
         except re.error as e:
             return f"Error: Invalid regex pattern: {e}"
 
-        results: List[str] = []
+        results: list[str] = []
         total_files = 0
 
         if include:
             from glob import iglob
+
             file_iter = iglob(include, root_dir=search_path, recursive=True)
         else:
-            file_iter = (str(p.relative_to(search_path)) for p in search_path.rglob("*") if p.is_file())
+            file_iter = (
+                str(p.relative_to(search_path)) for p in search_path.rglob("*") if p.is_file()
+            )
 
         for rel_path in file_iter:
             if len(results) >= max_results:
@@ -143,14 +152,14 @@ class ContentSearchTool(BaseTool):
             try:
                 if full_path.stat().st_size > 1024 * 1024:  # Skip files > 1MB
                     continue
-                with open(full_path, "r", encoding="utf-8", errors="replace") as f:
+                with open(full_path, encoding="utf-8", errors="replace") as f:
                     for i, line in enumerate(f, 1):
                         if compiled.search(line):
                             results.append(f"{rel_path}:{i}: {line.rstrip()[:200]}")
                             if len(results) >= max_results:
                                 break
                     total_files += 1
-            except (PermissionError, OSError):
+            except PermissionError, OSError:
                 continue
 
         if not results:

@@ -1,4 +1,5 @@
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from openai import AsyncOpenAI
 
@@ -8,7 +9,7 @@ from .base import BaseProvider, Message, ProviderResult, ToolDefinition
 class OpenAICompatibleProvider(BaseProvider):
     """Provider for any OpenAI-compatible API (DeepSeek, Groq, Together, etc.)."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
         api_key = config.get("api_key", "")
         base_url = config.get("base_url", "https://api.deepseek.com/v1")
@@ -28,41 +29,47 @@ class OpenAICompatibleProvider(BaseProvider):
 
     async def chat(
         self,
-        messages: List[Message],
-        tools: Optional[List[ToolDefinition]] = None,
-        on_stream: Optional[Callable[[str], None]] = None,
+        messages: list[Message],
+        tools: list[ToolDefinition] | None = None,
+        on_stream: Callable[[str], None] | None = None,
     ) -> ProviderResult:
         openai_messages = []
         for msg in messages:
             if msg.role == "tool":
-                openai_messages.append({
-                    "role": "tool",
-                    "tool_call_id": msg.tool_call_id,
-                    "content": msg.content,
-                })
+                openai_messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": msg.tool_call_id,
+                        "content": msg.content,
+                    }
+                )
             elif msg.role == "assistant" and msg.tool_calls:
-                openai_messages.append({
-                    "role": "assistant",
-                    "content": msg.content or None,
-                    "tool_calls": [
-                        {
-                            "id": tc.get("id"),
-                            "type": "function",
-                            "function": {
-                                "name": tc["function"]["name"],
-                                "arguments": tc["function"]["arguments"],
-                            },
-                        }
-                        for tc in msg.tool_calls
-                    ],
-                })
+                openai_messages.append(
+                    {
+                        "role": "assistant",
+                        "content": msg.content or None,
+                        "tool_calls": [
+                            {
+                                "id": tc.get("id"),
+                                "type": "function",
+                                "function": {
+                                    "name": tc["function"]["name"],
+                                    "arguments": tc["function"]["arguments"],
+                                },
+                            }
+                            for tc in msg.tool_calls
+                        ],
+                    }
+                )
             else:
-                openai_messages.append({
-                    "role": msg.role,
-                    "content": msg.content,
-                })
+                openai_messages.append(
+                    {
+                        "role": msg.role,
+                        "content": msg.content,
+                    }
+                )
 
-        kwargs: Dict[str, Any] = {
+        kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": openai_messages,
             "temperature": self.temperature,
@@ -107,12 +114,12 @@ class OpenAICompatibleProvider(BaseProvider):
 
     async def _stream_chat(
         self,
-        kwargs: Dict[str, Any],
+        kwargs: dict[str, Any],
         on_stream: Callable[[str], None],
     ) -> ProviderResult:
         stream = await self.client.chat.completions.create(**kwargs, stream=True)
         full_content = ""
-        tool_calls_map: Dict[int, Dict[str, Any]] = {}
+        tool_calls_map: dict[int, dict[str, Any]] = {}
 
         finish_reason = "stop"
         async for chunk in stream:
@@ -142,7 +149,9 @@ class OpenAICompatibleProvider(BaseProvider):
                         if tc_delta.function.name:
                             tool_calls_map[idx]["function"]["name"] += tc_delta.function.name
                         if tc_delta.function.arguments:
-                            tool_calls_map[idx]["function"]["arguments"] += tc_delta.function.arguments
+                            tool_calls_map[idx]["function"]["arguments"] += (
+                                tc_delta.function.arguments
+                            )
         tool_calls = list(tool_calls_map.values()) if tool_calls_map else None
 
         return ProviderResult(

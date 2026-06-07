@@ -5,7 +5,7 @@ Allows the AI to fetch web content, search the web, and
 interact with HTTP APIs.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import quote
 
 import httpx
@@ -22,10 +22,13 @@ class WebFetchTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Fetch and retrieve the content of a URL. Use this to read web pages, API responses, or documentation."
+        return (
+            "Fetch and retrieve the content of a URL. "
+            "Use this to read web pages, API responses, or documentation."
+        )
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
@@ -49,9 +52,12 @@ class WebFetchTool(BaseTool):
 
         try:
             async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-                response = await client.get(url, headers={
-                    "User-Agent": "Mozilla/5.0 (compatible; AIAssistant/1.0)",
-                })
+                response = await client.get(
+                    url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (compatible; AIAssistant/1.0)",
+                    },
+                )
                 response.raise_for_status()
 
             content_type = response.headers.get("content-type", "")
@@ -59,9 +65,15 @@ class WebFetchTool(BaseTool):
                 text = response.text
                 if len(text) > 50000:
                     text = text[:50000] + "\n... [truncated at 50000 characters]"
-                return f"URL: {url}\nStatus: {response.status_code}\nContent-Type: {content_type}\n\n{text}"
+                return (
+                    f"URL: {url}\nStatus: {response.status_code}\n"
+                    f"Content-Type: {content_type}\n\n{text}"
+                )
             else:
-                return f"URL: {url}\nStatus: {response.status_code}\nContent-Type: {content_type}\n(Content is binary, not displayed)"
+                return (
+                    f"URL: {url}\nStatus: {response.status_code}\n"
+                    f"Content-Type: {content_type}\n(Content is binary, not displayed)"
+                )
 
         except httpx.TimeoutException:
             return f"Error: Request timed out: {url}"
@@ -80,10 +92,13 @@ class WebSearchTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Search the web for information. Use this to find recent news, documentation, or any online information."
+        return (
+            "Search the web for information. "
+            "Use this to find recent news, documentation, or any online information."
+        )
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
@@ -105,9 +120,12 @@ class WebSearchTool(BaseTool):
 
         try:
             async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-                response = await client.get(search_url, headers={
-                    "User-Agent": "Mozilla/5.0 (compatible; AIAssistant/1.0)",
-                })
+                response = await client.get(
+                    search_url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (compatible; AIAssistant/1.0)",
+                    },
+                )
                 response.raise_for_status()
 
             # Simple extraction of search results from DuckDuckGo HTML
@@ -119,12 +137,13 @@ class WebSearchTool(BaseTool):
             blocks = re.findall(
                 r'<a rel="nofollow" class="result__a" href="(.*?)".*?>(.*?)</a>.*?'
                 r'<a class="result__snippet".*?>(.*?)</a>',
-                html, re.DOTALL
+                html,
+                re.DOTALL,
             )
 
             for i, (url, title, snippet) in enumerate(blocks[:num_results], 1):
-                title_clean = re.sub(r'<.*?>', '', title).strip()
-                snippet_clean = re.sub(r'<.*?>', '', snippet).strip()
+                title_clean = re.sub(r"<.*?>", "", title).strip()
+                snippet_clean = re.sub(r"<.*?>", "", snippet).strip()
                 results.append(f"{i}. {title_clean}\n   {url}\n   {snippet_clean}")
 
             if not results:
@@ -148,7 +167,7 @@ class DownloadFileTool(BaseTool):
         return "Download a file from a URL and save it to the specified local path."
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
