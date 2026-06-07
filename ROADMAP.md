@@ -45,8 +45,8 @@
 - [ ] Modelo default: `small` (mínimo viable para comandos/URLs)
 
 ## Fase 5 — Feature: Call Mode (desde cero)
-- [ ] Bucle asyncio: speak → listen → transcribe (faster-whisper) → AI respond → TTS → loop
-- [ ] Usar `asyncio.Event()` para espera no-bloqueante
-- [ ] `sd.play()` no-bloqueante + timer poll para detectar fin
-- [ ] Sin beeps ni estados de recording en call loop
-- [ ] Simplificado respecto a versión revertida (sin `done_callback` complejo)
+- [x] Bucle asyncio: speak → listen → transcribe (faster-whisper) → AI respond → TTS → loop
+- [x] `asyncio.Event()` → `threading.Event` + poll con `asyncio.sleep(0.1)`
+- [x] `sd.play()` no-bloqueante + `is_playing` poll en TTSEngine (sin `done_callback`)
+- [x] Sin beeps ni estados de recording en call loop
+- [x] Simplificado respecto a versión revertida (sin `done_callback` complejo)

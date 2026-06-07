@@ -156,25 +156,30 @@ class Transcriber:
 
 
 class TTSEngine:
-    """Text-to-speech using edge-tts (Microsoft Edge)."""
+    """Text-to-speech using edge-tts (Microsoft Edge).
+
+    ``speak()`` is non-blocking — returns immediately.
+    Poll ``is_playing`` to detect when playback finishes.
+    """
 
     def __init__(self):
         self._max_chars = 2000
-        self._is_speaking = False
         self._stop_event = threading.Event()
-        self._speak_lock = threading.Lock()
+        self._lock = threading.Lock()
 
     @property
-    def is_speaking(self) -> bool:
-        return self._is_speaking
+    def is_playing(self) -> bool:
+        try:
+            return self._stop_event.is_set() is False and sd.get_stream() is not None
+        except Exception:
+            return False
 
     def speak(self, text: str, voice: str = "es-MX-DaliaNeural") -> None:
-        """Speak text in a background thread."""
-        with self._speak_lock:
-            if self._is_speaking:
+        """Speak text in a background thread (non-blocking)."""
+        with self._lock:
+            if self.is_playing:
                 return
-            self._is_speaking = True
-        self._stop_event.clear()
+            self._stop_event.clear()
         truncated = text[:self._max_chars]
         threading.Thread(target=self._do_speak, args=(truncated, voice), daemon=True).start()
 
@@ -188,25 +193,13 @@ class TTSEngine:
             if self._stop_event.is_set():
                 os.unlink(tmp.name)
                 return
-            self._play_audio(tmp.name)
+            data, fs = sf.read(tmp.name)
             os.unlink(tmp.name)
-        except Exception as e:
-            logger.error("TTS error: %s", e)
-        finally:
-            with self._speak_lock:
-                self._is_speaking = False
-
-    def _play_audio(self, path: str) -> None:
-        try:
-            import numpy as np
-            data, fs = sf.read(path)
             sd.play(data, fs)
             sd.wait()
         except Exception as e:
-            logger.error("Audio playback error: %s", e)
+            logger.error("TTS error: %s", e)
 
     def stop(self) -> None:
         self._stop_event.set()
         sd.stop()
-        with self._speak_lock:
-            self._is_speaking = False

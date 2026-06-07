@@ -195,6 +195,9 @@ class ChatWidget(QWidget):
             )
         self._tts_engine = TTSEngine()
 
+        # Call mode
+        self._call_active = False
+
         # Background worker for async AI processing
         self._async_worker = AsyncWorker()
         self._async_thread = QThread(self)
@@ -215,6 +218,8 @@ class ChatWidget(QWidget):
     def cleanup(self) -> None:
         """Stop the background thread. Call this before destroying the widget."""
         self._cancel_requested = True
+        if self._call_active:
+            self._end_call()
         self._queue_timer.stop()
         self._async_worker.cancel_all()
         self._async_worker.stop()
@@ -379,6 +384,25 @@ class ChatWidget(QWidget):
         """)
         input_layout.addWidget(self.tts_btn)
 
+        self.call_btn = QPushButton("\U0001f4de Call")
+        self.call_btn.setFixedSize(70, 40)
+        self.call_btn.setToolTip("Start voice call mode")
+        self.call_btn.setStyleSheet("""
+            QPushButton {
+                background: #2a4a2a;
+                border: 1px solid #4a7a4a;
+                border-radius: 8px;
+                font-size: 12px;
+                color: #81c784;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #3a5a3a;
+                border-color: #81c784;
+            }
+        """)
+        input_layout.addWidget(self.call_btn)
+
         self.message_input = MessageInput()
         input_layout.addWidget(self.message_input, 1)
 
@@ -432,10 +456,210 @@ class ChatWidget(QWidget):
         self.stop_btn.clicked.connect(self._on_stop)
         self.audio_btn.clicked.connect(self._on_audio_toggle)
         self.tts_btn.clicked.connect(self._on_tts_stop)
+        self.call_btn.clicked.connect(self._on_call_toggle)
 
     def _on_tts_stop(self) -> None:
         """Stop current TTS playback."""
         self._tts_engine.stop()
+
+    # ---- Call mode ----
+
+    def _on_call_toggle(self) -> None:
+        """Toggle call mode on/off."""
+        if self._call_active:
+            self._end_call()
+        else:
+            self._start_call()
+
+    def _start_call(self) -> None:
+        """Enter voice call mode."""
+        self._call_active = True
+        self._cancel_requested = False
+        self.call_btn.setText("\U0001f534 Hang Up")
+        self.call_btn.setStyleSheet("""
+            QPushButton {
+                background: #4a1a1a;
+                border: 1px solid #c62828;
+                border-radius: 8px;
+                font-size: 12px;
+                color: #ef9a9a;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #5a2a2a;
+                border-color: #e53935;
+            }
+        """)
+        self.message_input.setVisible(False)
+        self.send_btn.setVisible(False)
+        self.attach_btn.setEnabled(False)
+        self.audio_btn.setEnabled(False)
+        self.stop_btn.setVisible(True)
+        self.thinking_label.setText("  \U0001f4de Call mode...")
+        self.thinking_label.setVisible(True)
+
+        self.conversation.add("system",
+            "[System Action] Voice call mode started."
+        )
+        self.conversation_updated.emit()
+
+        self._run_async_call(self._process_call_loop())
+
+    def _end_call(self) -> None:
+        """Exit voice call mode."""
+        if not self._call_active:
+            return
+        self._call_active = False
+        self._cancel_requested = True
+        self._tts_engine.stop()
+        self._audio_recorder.stop()
+
+        self.call_btn.setText("\U0001f4de Call")
+        self.call_btn.setStyleSheet("""
+            QPushButton {
+                background: #2a4a2a;
+                border: 1px solid #4a7a4a;
+                border-radius: 8px;
+                font-size: 12px;
+                color: #81c784;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #3a5a3a;
+                border-color: #81c784;
+            }
+        """)
+        self.message_input.setVisible(True)
+        self.send_btn.setVisible(True)
+        self.attach_btn.setEnabled(True)
+        self.audio_btn.setEnabled(True)
+        self.stop_btn.setVisible(False)
+        self.thinking_label.setVisible(False)
+        self._is_processing = False
+
+        self.conversation.add("system",
+            "[System Action] Voice call mode ended."
+        )
+        self.conversation_updated.emit()
+        self._rebuild_messages()
+
+    async def _process_call_loop(self) -> None:
+        """Main voice call loop: AI respond -> TTS -> record -> transcribe -> repeat."""
+        call_instruction = (
+            "Voice call mode is active. IMPORTANT RULES:\n"
+            "- Respond in PLAIN TEXT without any markdown (no **bold**, no headers, "
+            "no code blocks). Your response will be read aloud by TTS.\n"
+            "- Keep responses concise and conversational.\n"
+            "- For medium-risk actions (modifying files, installing), ask the user "
+            "verbally and then proceed if they say yes - no GUI dialogs.\n"
+            "- Do NOT attempt sudo, destructive, or irreversible commands.\n"
+            "- When the conversation is complete or the user wants to end, "
+            "include [END_CALL] at the very end of your final response.\n"
+            "- You may use tools normally.\n"
+            "- Speak naturally and conversationally, like a phone assistant."
+        )
+        self.conversation.add("system", call_instruction)
+
+        while self._call_active:
+            self._run_in_main(self._set_processing_state, True)
+
+            await self._process_response()
+
+            if not self._call_active:
+                break
+
+            last_text = self._get_last_assistant_text()
+            if not last_text:
+                break
+
+            call_ended = False
+            if "[END_CALL]" in last_text:
+                call_ended = True
+                last_text = last_text.replace("[END_CALL]", "").strip()
+
+            if last_text:
+                await self._speak_and_wait(last_text)
+
+            if call_ended:
+                self._run_in_main(self._end_call)
+                return
+
+            if not self._call_active:
+                break
+
+            self._run_in_main(self.thinking_label.setText, "  \U0001f3a4 Listening...")
+
+            audio_path = await self._record_and_wait()
+            if not audio_path or not self._call_active:
+                break
+
+            self._run_in_main(self.thinking_label.setText, "  \U0001f3a4 Transcribing...")
+
+            text = await self._transcribe_and_get_text(audio_path)
+            if not text or text.startswith("[Error"):
+                continue
+
+            if "termina la llamada" in text.lower():
+                self._run_in_main(self._end_call)
+                return
+
+            self._run_in_main(self._do_call_send, text)
+
+    def _do_call_send(self, text: str) -> None:
+        """Add user message from call mode and rebuild UI."""
+        self._remove_welcome()
+        user_widget = MessageWidget("user", text)
+        self.messages_layout.addWidget(user_widget)
+        self._scroll_to_bottom()
+        self.conversation.add("user", text)
+        self.conversation_updated.emit()
+
+    def _get_last_assistant_text(self) -> Optional[str]:
+        """Get the last assistant message content from the conversation."""
+        for entry in reversed(self.conversation.entries):
+            if entry.role == "assistant":
+                return entry.content
+        return None
+
+    async def _speak_and_wait(self, text: str) -> None:
+        """Speak text via TTS and wait for playback to finish."""
+        if not text.strip():
+            return
+        self._tts_engine.speak(text)
+        while self._tts_engine.is_playing:
+            if not self._call_active or self._cancel_requested:
+                self._tts_engine.stop()
+                return
+            await asyncio.sleep(0.1)
+
+    async def _record_and_wait(self) -> Optional[str]:
+        """Record audio and wait for silence detection. Returns path to audio file."""
+        recording_done = threading.Event()
+        audio_path_container: List[Optional[str]] = [None]
+
+        def _on_stop(path: str) -> None:
+            audio_path_container[0] = path
+            recording_done.set()
+
+        self._audio_recorder.start(on_stop=_on_stop)
+        while not recording_done.is_set():
+            if not self._call_active or self._cancel_requested:
+                self._audio_recorder.stop()
+                return None
+            await asyncio.sleep(0.1)
+        return audio_path_container[0]
+
+    async def _transcribe_and_get_text(self, audio_path: str) -> Optional[str]:
+        """Transcribe audio file in executor (non-blocking)."""
+        loop = asyncio.get_running_loop()
+        text = await loop.run_in_executor(
+            None, lambda: self._transcriber.transcribe(audio_path)
+        )
+        try:
+            _os.unlink(audio_path)
+        except Exception:
+            pass
+        return text
 
     def _on_audio_toggle(self) -> None:
         """Toggle audio recording on/off."""
@@ -506,7 +730,10 @@ class ChatWidget(QWidget):
             self._on_send()
 
     def _on_stop(self) -> None:
-        """Stop the current AI generation."""
+        """Stop the current AI generation or end call mode."""
+        if self._call_active:
+            self._end_call()
+            return
         self._cancel_requested = True
         self._async_worker.cancel_all()
         self.thinking_label.setText("  Stopping...")
@@ -599,7 +826,7 @@ class ChatWidget(QWidget):
 
     # ---- Thread-safe helpers for cross-thread GUI operations ----
 
-    async def _request_assistant_widget(self) -> MessageWidget:
+    async def _request_assistant_widget(self, tts_enabled: bool = False) -> MessageWidget:
         """Create an assistant message widget in the main thread and return it."""
         import concurrent.futures
         future: concurrent.futures.Future = concurrent.futures.Future()
@@ -612,7 +839,8 @@ class ChatWidget(QWidget):
                 if self._cancel_requested:
                     future.set_result(None)
                     return
-                widget = MessageWidget("assistant", "", is_streaming=True, on_tts=_tts_cb)
+                on_tts = _tts_cb if tts_enabled else None
+                widget = MessageWidget("assistant", "", is_streaming=True, on_tts=on_tts)
                 self.messages_layout.addWidget(widget)
                 self._scroll_to_bottom()
                 future.set_result(widget)
@@ -679,7 +907,7 @@ class ChatWidget(QWidget):
 
         messages = self.conversation.to_messages()
 
-        assistant_widget = await self._request_assistant_widget()
+        assistant_widget = await self._request_assistant_widget(tts_enabled=self._call_active)
         if assistant_widget is None:
             return
 
@@ -838,6 +1066,20 @@ class ChatWidget(QWidget):
                 pass
             finally:
                 self._run_in_main(self._set_processing_state, False)
+
+        self._async_worker.submit(_wrapper())
+
+    def _run_async_call(self, coro) -> None:
+        """Submit a call-mode coroutine without resetting processing state."""
+
+        async def _wrapper() -> None:
+            try:
+                await coro
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                logger.error("Call mode error: %s", e)
+                self._run_in_main(self._end_call)
 
         self._async_worker.submit(_wrapper())
 
