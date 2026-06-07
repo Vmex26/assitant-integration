@@ -340,6 +340,7 @@ class SettingsDialog(QDialog):
 
     def _on_apply(self) -> None:
         self._save_config()
+        QMessageBox.information(self, "Settings", "Settings saved successfully.")
 
     def _save_config(self) -> None:
         """Save all settings from the dialog to the config."""
@@ -385,5 +386,3 @@ class SettingsDialog(QDialog):
         # Tools
         for tool_name, check in self.tool_checks.items():
             self.config.set("tools_enabled", tool_name, check.isChecked())
-
-        QMessageBox.information(self, "Settings", "Settings saved successfully.")

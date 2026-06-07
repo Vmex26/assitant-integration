@@ -503,7 +503,7 @@ class ChatWidget(QWidget):
         """Remove the welcome label if present."""
         if self.welcome_label and self.welcome_label.parent():
             self.welcome_label.deleteLater()
-            self.welcome_label = QLabel()
+            self.welcome_label = None
 
     def _on_files_pasted(self, files: List[str]) -> None:
         """Handle files pasted from clipboard."""
@@ -589,46 +589,45 @@ class ChatWidget(QWidget):
 
     async def _request_assistant_widget(self) -> MessageWidget:
         """Create an assistant message widget in the main thread and return it."""
-        event = threading.Event()
-        widget_container: List[Optional[MessageWidget]] = [None]
+        import concurrent.futures
+        future: concurrent.futures.Future = concurrent.futures.Future()
 
         def _tts_cb(text: str) -> None:
             self._tts_engine.speak(text)
 
         def _on_main() -> None:
-            widget = MessageWidget("assistant", "", is_streaming=True, on_tts=_tts_cb)
-            self.messages_layout.addWidget(widget)
-            self._scroll_to_bottom()
-            widget_container[0] = widget
-            event.set()
+            try:
+                if self._cancel_requested:
+                    future.set_result(None)
+                    return
+                widget = MessageWidget("assistant", "", is_streaming=True, on_tts=_tts_cb)
+                self.messages_layout.addWidget(widget)
+                self._scroll_to_bottom()
+                future.set_result(widget)
+            except Exception as e:
+                future.set_exception(e)
 
         self._run_in_main(_on_main)
-        while not event.is_set():
-            if self._cancel_requested:
-                return None
-            await asyncio.sleep(0.1)
-        return widget_container[0]
+        return await asyncio.wrap_future(future)
 
     async def _request_confirm(self, tool_name: str, args: dict) -> bool:
         """Show confirmation dialog in the main thread and return result."""
-        event = threading.Event()
-        result_container: List[bool] = [False]
+        import concurrent.futures
+        future: concurrent.futures.Future = concurrent.futures.Future()
 
         def _on_main() -> None:
-            if self._cancel_requested:
-                event.set()
-                return
-            command_preview = args.get("command") or args.get("code") or ""
-            dialog = _ConfirmDialog(command_preview, tool_name, None)
-            result_container[0] = bool(dialog.exec())
-            event.set()
+            try:
+                if self._cancel_requested:
+                    future.set_result(False)
+                    return
+                command_preview = args.get("command") or args.get("code") or ""
+                dialog = _ConfirmDialog(command_preview, tool_name, None)
+                future.set_result(bool(dialog.exec()))
+            except Exception as e:
+                future.set_exception(e)
 
         self._run_in_main(_on_main)
-        while not event.is_set():
-            if self._cancel_requested:
-                return False
-            await asyncio.sleep(0.1)
-        return result_container[0]
+        return await asyncio.wrap_future(future)
 
     def _add_tool_widget(self, role: str, content: str) -> None:
         """Schedule a tool result widget addition in the main thread."""

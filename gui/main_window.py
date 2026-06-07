@@ -499,7 +499,6 @@ class MainWindow(QMainWindow):
                 f"The app will still work, but this model won't be available until fixed.",
             )
             return
-        self.config.active_provider = name
         self._update_model_indicator()
 
         # Update menu check states

@@ -185,10 +185,6 @@ class AnthropicProvider(BaseProvider):
                     img = img.convert("RGB")
                 img.thumbnail((2048, 2048), Image.LANCZOS)
                 buffer = io.BytesIO()
-                if img.mode in ("RGBA", "P"):
-                    img = img.convert("RGB")
-                img.thumbnail((2048, 2048), Image.LANCZOS)
-                buffer = io.BytesIO()
                 img.save(buffer, format="JPEG", quality=85)
                 media_type = "image/jpeg"
                 if file_ext == "png":

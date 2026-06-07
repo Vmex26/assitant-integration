@@ -21,13 +21,13 @@
 - [x] Bug 12: `chat_widget.py:819` — `_rebuild_messages` con `setParent(None)` en vez de `deleteLater()`
 
 ## Fase 2 — Medium/Low severity + mejoras
-- [ ] Bug 13: `anthropic_provider.py:186-191` — código duplicado de image processing
-- [ ] Bug 14: `system_panel.py:80` — primer CPU% siempre 0%
-- [ ] Bug 15: `chat_widget.py:492` — orphan `QLabel()` en `_remove_welcome`
-- [ ] Bug 16: `main_window.py:493,502` — `active_provider` seteado dos veces
-- [ ] Bug 17: `settings_dialog.py:341` — Apply y OK muestran popup
-- [ ] Bug 18: `chat_widget.py:592` — busy-wait con `asyncio.sleep(0.1)` en vez de `asyncio.Event()`
-- [ ] Bug 19: `message_widget.py:37` — markdown roto entre chunks streaming
+- [x] Bug 13: `anthropic_provider.py` — eliminado código duplicado de image processing
+- [x] Bug 14: `system_panel.py` — `interval=0` → `interval=0.1` para evitar 0% en primera lectura
+- [x] Bug 15: `chat_widget.py` — `_remove_welcome` setea `None` en vez de `QLabel()` huérfano
+- [x] Bug 16: `main_window.py` — eliminada línea redundante `active_provider` (seteado dos veces)
+- [x] Bug 17: `settings_dialog.py` — popup movido de `_save_config` a `_on_apply` solo
+- [x] Bug 18: `chat_widget.py` — `_request_assistant_widget`/`_request_confirm` usan `concurrent.futures.Future` + `asyncio.wrap_future` (sin busy-wait)
+- [x] Bug 19: `message_widget.py` — `append_stream_text` re-renderea full content con `set_markdown` en vez de chunks independientes
 
 ## Fase 3 — Feature: Verbosity/Debug parameter
 - [ ] Añadir `verbose: bool` en `Config`

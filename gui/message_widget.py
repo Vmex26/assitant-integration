@@ -365,7 +365,7 @@ class MessageWidget(QFrame):
         if self.role == "tool":
             self.text_label.setText(self._full_content)
         else:
-            self.text_browser.append_markdown(text)
+            self.text_browser.set_markdown(self._full_content)
 
     def _copy_content(self) -> None:
         """Copy message content to clipboard."""

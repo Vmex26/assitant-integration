@@ -77,7 +77,7 @@ class SystemHealthPanel(QWidget):
     def _refresh(self):
         import psutil
 
-        cpu = int(psutil.cpu_percent(interval=0))
+        cpu = int(psutil.cpu_percent(interval=0.1))
         self.cpu_bar.setValue(cpu)
         color = self._bar_color(cpu)
         self.cpu_bar.setStyleSheet(self._bar_style(color))
