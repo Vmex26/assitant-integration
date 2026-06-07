@@ -25,8 +25,8 @@ class ExecuteCommandTool(BaseTool):
             "Execute a shell command and return its stdout and stderr. "
             "Use this to run scripts, compile code, or interact with the system. "
             "IMPORTANT: If launching a GUI application (e.g., 'firefox'), "
-            "you MUST append '&' to the command (e.g., 'firefox &') "
-            "to prevent blocking the assistant."
+            "you MUST use: 'command > /dev/null 2>&1 & disown' "
+            "to prevent blocking the assistant and detach the app properly."
         )
 
     @property
