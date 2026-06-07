@@ -23,7 +23,10 @@ class ExecuteCommandTool(BaseTool):
     def description(self) -> str:
         return (
             "Execute a shell command and return its stdout and stderr. "
-            "Use this to run scripts, compile code, or interact with the system."
+            "Use this to run scripts, compile code, or interact with the system. "
+            "IMPORTANT: If launching a GUI application (e.g., 'firefox'), "
+            "you MUST append '&' to the command (e.g., 'firefox &') "
+            "to prevent blocking the assistant."
         )
 
     @property

@@ -369,21 +369,26 @@ class MessageWidget(QFrame):
     def append_stream_text(self, text: str) -> None:
         """Append text during streaming."""
         self._full_content += text
-        if self.role == "tool":
-            self.text_label.setText(self._full_content)
-        else:
-            self.text_browser.set_markdown(self._full_content)
+        try:
+            if self.role == "tool":
+                self.text_label.setText(self._full_content)
+            else:
+                self.text_browser.set_markdown(self._full_content)
+        except RuntimeError:
+            pass
 
     def _copy_content(self) -> None:
         """Copy message content to clipboard."""
         from PyQt6.QtGui import QGuiApplication
-
         QGuiApplication.clipboard().setText(self._full_content)
 
     def set_content(self, content: str) -> None:
         """Set/replace the full content."""
         self._full_content = content
-        if self.role == "tool":
-            self.text_label.setText(content)
-        else:
-            self.text_browser.set_markdown(content)
+        try:
+            if self.role == "tool":
+                self.text_label.setText(content)
+            else:
+                self.text_browser.set_markdown(content)
+        except RuntimeError:
+            pass
