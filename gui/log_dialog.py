@@ -73,6 +73,7 @@ class LogDialog(QDialog):
         self.resize(700, 500)
         self._fetched_content = ""
         self._current_preset = ""
+        self._is_fetching = False
         self._init_ui()
 
     def _init_ui(self):
@@ -136,6 +137,10 @@ class LogDialog(QDialog):
         self.analyze_btn.setEnabled(False)
 
     def _fetch_logs(self):
+        if self._is_fetching:
+            return
+        self._is_fetching = True
+
         preset = self.preset_combo.currentText()
         custom = self.custom_input.toPlainText().strip()
 
@@ -149,16 +154,16 @@ class LogDialog(QDialog):
         self.output_view.setPlainText("Fetching logs...")
         self._current_preset = preset if not custom else f"Custom: journalctl {custom}"
 
-        self._thread = QThread(self)
-        self._worker = LogFetcher(args)
-        self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.run)
-        self._worker.finished.connect(self._on_fetched)
-        self._worker.error.connect(self._on_error)
-        self._worker.finished.connect(self._thread.quit)
-        self._worker.error.connect(self._thread.quit)
-        self._thread.finished.connect(self._cleanup_thread)
-        self._thread.start()
+        thread = QThread(self)
+        worker = LogFetcher(args)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(self._on_fetched)
+        worker.error.connect(self._on_error)
+        worker.finished.connect(thread.quit)
+        worker.error.connect(thread.quit)
+        thread.finished.connect(lambda: self._cleanup_fetch(thread, worker))
+        thread.start()
 
     def _on_fetched(self, content: str):
         self._fetched_content = content
@@ -173,11 +178,10 @@ class LogDialog(QDialog):
         self.fetch_btn.setEnabled(True)
         self.fetch_btn.setText("Fetch logs")
 
-    def _cleanup_thread(self):
-        self._thread.deleteLater()
-        self._worker.deleteLater()
-        self._thread = None
-        self._worker = None
+    def _cleanup_fetch(self, thread: QThread, worker: QObject):
+        thread.deleteLater()
+        worker.deleteLater()
+        self._is_fetching = False
 
     def _send_to_chat(self):
         if self._fetched_content:

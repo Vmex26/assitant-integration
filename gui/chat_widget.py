@@ -8,6 +8,8 @@ import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+import threading as _threading
+
 from PyQt6.QtCore import QObject, Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QKeyEvent
 from PyQt6.QtWidgets import (
@@ -456,7 +458,20 @@ class ChatWidget(QWidget):
             self.audio_btn.setText("⏹")
 
     def _on_audio_ready(self, audio_path: str) -> None:
-        """Called when recording is complete — transcribe and send."""
+        """Called when recording is complete — transcribe (bg) then send."""
+        _threading.Thread(
+            target=self._transcribe_and_send,
+            args=(audio_path,),
+            daemon=True,
+        ).start()
+
+    def _transcribe_and_send(self, audio_path: str) -> None:
+        """Run transcription in background thread, dispatch Qt work to main thread."""
+        text = self._transcriber.transcribe(audio_path)
+        self._run_in_main(self._finish_audio, text, audio_path)
+
+    def _finish_audio(self, text: str, audio_path: str) -> None:
+        """Handle transcription result on main thread."""
         self.audio_btn.setText("🎤")
         self.audio_btn.setStyleSheet("""
             QPushButton {
@@ -470,7 +485,6 @@ class ChatWidget(QWidget):
                 border-color: #4fc3f7;
             }
         """)
-        text = self._transcriber.transcribe(audio_path)
         try:
             _os.unlink(audio_path)
         except Exception:
@@ -770,9 +784,16 @@ class ChatWidget(QWidget):
 
     def _scroll_to_bottom(self) -> None:
         """Scroll the message area to the bottom."""
-        QTimer.singleShot(50, lambda: self.scroll_area.verticalScrollBar().setValue(
-            self.scroll_area.verticalScrollBar().maximum()
-        ))
+        QTimer.singleShot(50, self._do_scroll_to_bottom)
+
+    def _do_scroll_to_bottom(self) -> None:
+        """Inner scroll to bottom (safe to call after widget deletion)."""
+        try:
+            self.scroll_area.verticalScrollBar().setValue(
+                self.scroll_area.verticalScrollBar().maximum()
+            )
+        except RuntimeError:
+            pass
 
     def _get_parent_window_config(self):
         """Get config from parent MainWindow."""
@@ -793,6 +814,8 @@ class ChatWidget(QWidget):
                 func(*args)
             except queue.Empty:
                 break
+            except Exception as e:
+                print(f"Error in queued call {func}: {e}")
 
     def _run_async(self, coro) -> None:
         """Submit coroutine to background worker without blocking the GUI."""

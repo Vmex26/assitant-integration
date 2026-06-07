@@ -131,10 +131,14 @@ class OpenAIProvider(BaseProvider):
         full_content = ""
         tool_calls_map: Dict[int, Dict[str, Any]] = {}
 
+        finish_reason = "stop"
         async for chunk in stream:
             delta = chunk.choices[0].delta if chunk.choices else None
             if not delta:
                 continue
+
+            if chunk.choices:
+                finish_reason = chunk.choices[0].finish_reason or finish_reason
 
             if delta.content:
                 full_content += delta.content
@@ -156,8 +160,6 @@ class OpenAIProvider(BaseProvider):
                             tool_calls_map[idx]["function"]["name"] += tc_delta.function.name
                         if tc_delta.function.arguments:
                             tool_calls_map[idx]["function"]["arguments"] += tc_delta.function.arguments
-
-        finish_reason = chunk.choices[0].finish_reason if chunk.choices else "stop"
         tool_calls = list(tool_calls_map.values()) if tool_calls_map else None
 
         return ProviderResult(

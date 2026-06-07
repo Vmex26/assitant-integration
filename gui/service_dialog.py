@@ -78,6 +78,7 @@ class ServiceDialog(QDialog):
         self.setWindowTitle("System Services")
         self.resize(750, 500)
         self._services: List[ServiceEntry] = []
+        self._is_loading = False
         self._init_ui()
         self._load_services()
 
@@ -187,22 +188,26 @@ class ServiceDialog(QDialog):
         self._all_services = []
 
     def _load_services(self):
+        if self._is_loading:
+            return
+        self._is_loading = True
         self.status_label.setText("Loading services...")
         self.table.setRowCount(0)
         self.table.setEnabled(False)
 
-        self._thread = QThread(self)
-        self._worker = ServiceLoader()
-        self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.run)
-        self._worker.finished.connect(self._on_loaded)
-        self._worker.error.connect(self._on_error)
-        self._worker.finished.connect(self._thread.quit)
-        self._worker.error.connect(self._thread.quit)
-        self._thread.finished.connect(self._cleanup_thread)
-        self._thread.start()
+        thread = QThread(self)
+        worker = ServiceLoader()
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(self._on_loaded)
+        worker.error.connect(self._on_error)
+        worker.finished.connect(thread.quit)
+        worker.error.connect(thread.quit)
+        thread.finished.connect(lambda: self._cleanup_loading(thread, worker))
+        thread.start()
 
     def _on_loaded(self, entries: List[ServiceEntry]):
+        self._is_loading = False
         self._all_services = entries
         self._services = list(entries)
         self._populate_table(entries)
@@ -210,14 +215,13 @@ class ServiceDialog(QDialog):
         self.status_label.setText(f"{len(entries)} services loaded")
 
     def _on_error(self, msg: str):
+        self._is_loading = False
         self.status_label.setText(f"Error: {msg}")
         self.table.setEnabled(True)
 
-    def _cleanup_thread(self):
-        self._thread.deleteLater()
-        self._worker.deleteLater()
-        self._thread = None
-        self._worker = None
+    def _cleanup_loading(self, thread: QThread, worker: QObject):
+        thread.deleteLater()
+        worker.deleteLater()
 
     def _populate_table(self, entries: List[ServiceEntry]):
         self.table.setRowCount(len(entries))

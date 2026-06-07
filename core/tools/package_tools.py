@@ -5,6 +5,7 @@ Allows searching, inspecting, installing, and removing system packages.
 For AUR packages, provides PKGBUILD inspection before installation.
 """
 
+import subprocess
 from typing import Any, Dict, Optional
 
 from .base import BaseTool
