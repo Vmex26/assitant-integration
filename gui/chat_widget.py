@@ -212,6 +212,7 @@ class ChatWidget(QWidget):
         self._tts_engine = TTSEngine()
         self._tts_enabled = False
         self._tts_from_mic = False
+        self._tts_state_before_mic = False
 
         # Call mode
         self._call_active = False
@@ -251,6 +252,8 @@ class ChatWidget(QWidget):
         self._cancel_requested = True
         if self._call_active:
             self._end_call()
+        self._tts_timer.stop()
+        self._tts_engine.stop()
         self._queue_timer.stop()
         self._async_worker.cancel_all()
         self._async_worker.stop()
@@ -400,7 +403,7 @@ class ChatWidget(QWidget):
 
         self.tts_btn = QPushButton("🔊")
         self.tts_btn.setFixedSize(40, 40)
-        self.tts_btn.setToolTip("Stop audio playback")
+        self.tts_btn.setToolTip("Click to enable TTS")
         self.tts_btn.setStyleSheet("""
             QPushButton {
                 background: #333;
@@ -492,7 +495,7 @@ class ChatWidget(QWidget):
     def _update_tts_btn(self) -> None:
         """Update TTS button style based on speaking state."""
         if self._tts_from_mic and not self._tts_engine.is_speaking:
-            self._tts_enabled = False
+            self._tts_enabled = self._tts_state_before_mic
             self._tts_from_mic = False
         if self._tts_engine.is_speaking:
             self.tts_btn.setToolTip("Playing — click to stop")
@@ -607,6 +610,9 @@ class ChatWidget(QWidget):
                 border-color: #81c784;
             }
         """)
+        self._tts_enabled = False
+        self._tts_from_mic = False
+        self._update_tts_btn()
         self.message_input.setVisible(True)
         self.send_btn.setVisible(True)
         self.attach_btn.setEnabled(True)
@@ -788,6 +794,7 @@ class ChatWidget(QWidget):
                 }
             """)
         else:
+            self._tts_state_before_mic = self._tts_enabled
             self._tts_enabled = True
             self._tts_from_mic = True
             self._update_tts_btn()
@@ -1229,11 +1236,10 @@ class ChatWidget(QWidget):
 
     def _rebuild_messages(self) -> None:
         """Rebuild the message display from conversation history."""
-        # Clear existing widgets immediately (not via deleteLater)
         while self.messages_layout.count():
             item = self.messages_layout.takeAt(0)
             if item and item.widget():
-                item.widget().setParent(None)
+                item.widget().deleteLater()
 
         if not self.conversation.entries:
             self._show_welcome()

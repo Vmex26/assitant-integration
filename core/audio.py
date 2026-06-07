@@ -134,30 +134,30 @@ class Transcriber:
         with self._model_lock:
             if self._model is not None:
                 return
-        try:
-            from faster_whisper import WhisperModel
-        except ImportError:
-            raise RuntimeError("faster-whisper is not installed. Run: pip install faster-whisper")
-        device = self._device
-        if device == "auto":
-            if importlib.util.find_spec("torch") is not None:
-                import torch  # type: ignore[reportMissingImports]
+            try:
+                from faster_whisper import WhisperModel
+            except ImportError:
+                raise RuntimeError(
+                    "faster-whisper is not installed. Run: pip install faster-whisper"
+                )
+            device = self._device
+            if device == "auto":
+                if importlib.util.find_spec("torch") is not None:
+                    import torch  # type: ignore[reportMissingImports]
 
-                device = "cuda" if torch.cuda.is_available() else "cpu"
-            else:
-                device = "cpu"
-        compute = self._compute_type
-        if compute == "auto":
-            compute = "float16" if device == "cuda" else "int8"
-        logger.info(
-            "Loading whisper model '%s' on %s (compute=%s)",
-            self._model_size,
-            device,
-            compute,
-        )
-        model = WhisperModel(self._model_size, device=device, compute_type=compute)
-        with self._model_lock:
-            self._model = model
+                    device = "cuda" if torch.cuda.is_available() else "cpu"
+                else:
+                    device = "cpu"
+            compute = self._compute_type
+            if compute == "auto":
+                compute = "float16" if device == "cuda" else "int8"
+            logger.info(
+                "Loading whisper model '%s' on %s (compute=%s)",
+                self._model_size,
+                device,
+                compute,
+            )
+            self._model = WhisperModel(self._model_size, device=device, compute_type=compute)
 
     def transcribe(self, audio_path: str, language: str = "es") -> str | None:
         """Transcribe audio file using faster-whisper."""
@@ -186,6 +186,8 @@ class TTSEngine:
 
     def speak(self, text: str, voice: str = "es-MX-DaliaNeural") -> None:
         """Speak text in a background thread."""
+        if not text or not text.strip():
+            return
         with self._speak_lock:
             if self._is_speaking:
                 return

@@ -135,7 +135,7 @@ def format_api_error(error_text: str, provider: str = "API") -> str:
             "The API key is missing or invalid. "
             "Go to Settings (Ctrl+,) and configure a valid API key."
         )
-    if "404" in error_text or "not found" in error_lower and "model" in error_lower:
+    if ("404" in error_text or "not found" in error_lower) and "model" in error_lower:
         return (
             f"**{provider} - Model not found**\n\n"
             "The selected model is not available. "
