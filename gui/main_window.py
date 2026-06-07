@@ -31,6 +31,8 @@ from core.tools.command_tools import ExecuteCommandTool, ExecutePythonTool
 from core.tools.file_tools import ListDirectoryTool, ReadFileTool, WriteFileTool
 from core.tools.package_tools import SearchPackageTool, ShowPKGBUILDTool
 from core.tools.search_tools import ContentSearchTool, GlobSearchTool
+from core.tools.translator_tools import AppTranslatorTool
+from core.tools.software_finder import SoftwareFinderTool
 from core.tools.web_tools import DownloadFileTool, WebFetchTool, WebSearchTool
 
 from .chat_widget import ChatWidget
@@ -81,6 +83,8 @@ class MainWindow(QMainWindow):
             DownloadFileTool,
             SearchPackageTool,
             ShowPKGBUILDTool,
+            AppTranslatorTool,
+            SoftwareFinderTool,
         ]:
             self.tool_registry.register(tool_cls())
 
@@ -726,13 +730,15 @@ class MainWindow(QMainWindow):
             "You can fetch web content and search the web with web_fetch / web_search. "
             "Download files with download_file.\n\n"
             "## Background Processes & GUI Applications\n"
-            "When executing commands that launch GUI applications (like 'firefox') or should run in the background, "
-            "you MUST ensure they are properly detached from the assistant's process to avoid blocking and input/output issues.\n"
-            "Use the following pattern:\n"
+            "When executing commands that launch GUI applications (like 'firefox') or background processes where "
+            "you do not need any output from the process, you MUST use the following exact pattern to ensure "
+            "it is fully detached and does not hang the assistant:\n"
             "`command > /dev/null 2>&1 & disown`\n"
-            "- Redirecting output to /dev/null prevents the process from trying to write to the assistant's stdout/stderr.\n"
-            "- Appending '&' runs the process in the background.\n"
-            "- 'disown' removes the process from the shell's job table, ensuring it stays alive if the assistant closes.\n\n"
+            "- The entire segment `> /dev/null 2>&1` is REQUIRED to redirect stdout and stderr to null, "
+            "preventing the process from trying to write to the assistant's buffers.\n"
+            "- The `&` is required to run it in the background.\n"
+            "- The `disown` is required to detach it from the assistant's process table.\n"
+            "NEVER omit the redirection part.\n\n"
             "## Sudo / Root Access\n"
             "You CAN use sudo, but ONLY when the user explicitly authorizes it through the "
             "graphical sudo password dialog that appears on screen. "
