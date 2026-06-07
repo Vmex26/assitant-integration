@@ -210,6 +210,8 @@ class ChatWidget(QWidget):
                 compute_type=self._config.whisper_compute_type,
             )
         self._tts_engine = TTSEngine()
+        self._tts_enabled = False
+        self._tts_from_mic = False
 
         # Call mode
         self._call_active = False
@@ -238,6 +240,11 @@ class ChatWidget(QWidget):
         self._queue_timer = QTimer(self)
         self._queue_timer.timeout.connect(self._flush_main_queue)
         self._queue_timer.start(30)
+
+        # TTS state poll timer
+        self._tts_timer = QTimer(self)
+        self._tts_timer.timeout.connect(self._update_tts_btn)
+        self._tts_timer.start(200)
 
     def cleanup(self) -> None:
         """Stop the background thread. Call this before destroying the widget."""
@@ -482,9 +489,61 @@ class ChatWidget(QWidget):
         self.tts_btn.clicked.connect(self._on_tts_stop)
         self.call_btn.clicked.connect(self._on_call_toggle)
 
+    def _update_tts_btn(self) -> None:
+        """Update TTS button style based on speaking state."""
+        if self._tts_from_mic and not self._tts_engine.is_speaking:
+            self._tts_enabled = False
+            self._tts_from_mic = False
+        if self._tts_engine.is_speaking:
+            self.tts_btn.setToolTip("Playing — click to stop")
+            self.tts_btn.setStyleSheet("""
+                QPushButton {
+                    background: #2a5a2a;
+                    border: 2px solid #4caf50;
+                    border-radius: 8px;
+                    font-size: 18px;
+                }
+                QPushButton:hover {
+                    background: #3a6a3a;
+                    border-color: #66bb6a;
+                }
+            """)
+        elif self._tts_enabled:
+            self.tts_btn.setToolTip("TTS enabled — next response will speak")
+            self.tts_btn.setStyleSheet("""
+                QPushButton {
+                    background: #1e3a1e;
+                    border: 2px solid #388e3c;
+                    border-radius: 8px;
+                    font-size: 18px;
+                }
+                QPushButton:hover {
+                    background: #2a4a2a;
+                    border-color: #4caf50;
+                }
+            """)
+        else:
+            self.tts_btn.setToolTip("Click to enable TTS")
+            self.tts_btn.setStyleSheet("""
+                QPushButton {
+                    background: #333;
+                    border: 1px solid #555;
+                    border-radius: 8px;
+                    font-size: 18px;
+                }
+                QPushButton:hover {
+                    background: #444;
+                    border-color: #4fc3f7;
+                }
+            """)
+
     def _on_tts_stop(self) -> None:
-        """Stop current TTS playback."""
-        self._tts_engine.stop()
+        """Toggle TTS mode or stop current playback."""
+        if self._tts_engine.is_speaking:
+            self._tts_engine.stop()
+        else:
+            self._tts_enabled = not self._tts_enabled
+            self._update_tts_btn()
 
     # ---- Call mode ----
 
@@ -578,6 +637,10 @@ class ChatWidget(QWidget):
             "ask them before ending. In Spanish ask: '¿Quieres terminar la "
             "llamada?'. In English ask: 'Do you want to end the call?'.\n"
             "- You may use tools normally.\n"
+            "- Transcription may have errors. If the user's message seems "
+            "garbled, nonsensical, or likely mis-transcribed, try to infer "
+            "what they meant from context. If you cannot, politely let them "
+            "know you may have misheard and ask them to repeat it.\n"
             "- Speak naturally and conversationally, like a phone assistant."
         )
         original_system_prompt = self.conversation.system_prompt
@@ -725,7 +788,13 @@ class ChatWidget(QWidget):
                 }
             """)
         else:
+            self._tts_enabled = True
+            self._tts_from_mic = True
+            self._update_tts_btn()
+            self._play_beep()
             self._audio_recorder.start(on_stop=self._on_audio_ready)
+            self.thinking_label.setText("  \U0001f3a4 Listening...")
+            self.thinking_label.setVisible(True)
             self.audio_btn.setStyleSheet("""
                 QPushButton {
                     background: #c62828;
@@ -742,6 +811,7 @@ class ChatWidget(QWidget):
 
     def _on_audio_ready(self, audio_path: str) -> None:
         """Called when recording is complete — transcribe (bg) then send."""
+        self._run_in_main(self.thinking_label.setText, "  \U0001f3a4 Transcribing...")
         _threading.Thread(
             target=self._transcribe_and_send,
             args=(audio_path,),
@@ -768,6 +838,7 @@ class ChatWidget(QWidget):
                 border-color: #4fc3f7;
             }
         """)
+        self.thinking_label.setVisible(False)
         try:
             _os.unlink(audio_path)
         except Exception:
@@ -961,7 +1032,8 @@ class ChatWidget(QWidget):
 
         messages = self.conversation.to_messages()
 
-        assistant_widget = await self._request_assistant_widget(tts_enabled=self._call_active)
+        tts_on = self._call_active or self._tts_enabled
+        assistant_widget = await self._request_assistant_widget(tts_enabled=tts_on)
         if assistant_widget is None:
             return
 
