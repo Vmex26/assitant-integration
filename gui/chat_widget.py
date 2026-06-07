@@ -1037,114 +1037,136 @@ class ChatWidget(QWidget):
                 continue
             tools.append(tool)
 
-        messages = self.conversation.to_messages()
-
-        tts_on = self._call_active or self._tts_enabled
-        assistant_widget = await self._request_assistant_widget(tts_enabled=tts_on)
-        if assistant_widget is None:
-            return
-
-        max_tool_rounds = 10
-        current_round = 0
-
-        def on_stream(chunk: str) -> None:
-            self._run_in_main(self._append_stream, assistant_widget, chunk)
-
-        while current_round < max_tool_rounds:
-            current_round += 1
-
-            try:
-                result = await provider.chat(
-                    messages,
-                    tools=[t.to_definition() for t in tools] if tools else None,
-                    on_stream=on_stream if current_round == 1 else None,
+        _orig_system = self.conversation.system_prompt
+        _tts_instruction_added = False
+        try:
+            if self._tts_enabled and not self._call_active:
+                self.conversation.system_prompt = _orig_system + (
+                    "\n\n---\n"
+                    "TTS mode is active — your final response will be read aloud.\n"
+                    "IMPORTANT:\n"
+                    "- This is NORMAL chat mode (NOT voice call). "
+                    "Use tools, execute commands, confirm — proceed as usual.\n"
+                    "- Only the final text you write is spoken. "
+                    "Avoid markdown: no **bold**, headers, code blocks, lists.\n"
+                    "- Tool output, file contents, code — all work exactly as in regular chat.\n"
                 )
-            except asyncio.CancelledError:
+                _tts_instruction_added = True
+
+            messages = self.conversation.to_messages()
+
+            tts_on = self._call_active or self._tts_enabled
+            assistant_widget = await self._request_assistant_widget(tts_enabled=tts_on)
+            if assistant_widget is None:
                 return
-            except Exception as e:
-                error_text = format_api_error(str(e), provider_name)
-                self._run_in_main(assistant_widget.set_content, error_text)
-                self._add_conv_message(Message(role="assistant", content=error_text))
-                break
 
-            if result.finish_reason == "error":
-                error_text = format_api_error(result.content, provider_name)
-                self._run_in_main(assistant_widget.set_content, error_text)
-                self._add_conv_message(Message(role="assistant", content=error_text))
-                break
+            max_tool_rounds = 10
+            current_round = 0
 
-            if result.tool_calls:
-                self._add_conv_message(
-                    Message(
-                        role="assistant",
-                        content=result.content,
-                        tool_calls=result.tool_calls,
+            def on_stream(chunk: str) -> None:
+                self._run_in_main(self._append_stream, assistant_widget, chunk)
+
+            while current_round < max_tool_rounds:
+                current_round += 1
+
+                try:
+                    result = await provider.chat(
+                        messages,
+                        tools=[t.to_definition() for t in tools] if tools else None,
+                        on_stream=on_stream if current_round == 1 else None,
                     )
-                )
+                except asyncio.CancelledError:
+                    return
+                except Exception as e:
+                    error_text = format_api_error(str(e), provider_name)
+                    self._run_in_main(assistant_widget.set_content, error_text)
+                    self._add_conv_message(Message(role="assistant", content=error_text))
+                    break
 
-                for tc in result.tool_calls:
-                    tool_name = tc["function"]["name"]
-                    try:
-                        args = json.loads(tc["function"]["arguments"])
-                    except json.JSONDecodeError:
-                        args = {}
+                if result.finish_reason == "error":
+                    error_text = format_api_error(result.content, provider_name)
+                    self._run_in_main(assistant_widget.set_content, error_text)
+                    self._add_conv_message(Message(role="assistant", content=error_text))
+                    break
 
-                    confirm = tool_name in ("execute_command", "execute_python")
-                    if confirm:
-                        confirmed = await self._request_confirm(tool_name, args)
-                        if not confirmed:
-                            tool_result = (
-                                f"[The {tool_name} tool was NOT executed. "
-                                f"The user cancelled it from the confirmation dialog.]\n\n"
-                                f"The user chose to cancel the {tool_name} execution."
-                            )
-                            self._add_conv_message(
-                                Message(
-                                    role="tool",
-                                    content=tool_result,
-                                    tool_call_id=tc.get("id", ""),
-                                    name=tool_name,
-                                )
-                            )
-                            self._add_tool_widget("tool", f"**Cancelled:** {tool_name}")
-                            continue
-
-                    if self._cancel_requested:
-                        return
-
-                    tool_result = await self.tool_registry.execute(tool_name, **args)
-
-                    tool_result_with_note = (
-                        f"[The {tool_name} tool was executed automatically by the system. "
-                        f"The following is the actual output/result, NOT provided by the user.]\n\n"
-                        f"{tool_result}"
-                    )
-
+                if result.tool_calls:
                     self._add_conv_message(
                         Message(
-                            role="tool",
-                            content=tool_result_with_note,
-                            tool_call_id=tc.get("id", ""),
-                            name=tool_name,
+                            role="assistant",
+                            content=result.content,
+                            tool_calls=result.tool_calls,
                         )
                     )
-                    self._add_tool_widget("tool", tool_result)
 
-                messages = self.conversation.to_messages()
-            else:
-                self._run_in_main(assistant_widget.set_content, result.content)
-                self._run_in_main(self._set_assistant_done, assistant_widget)
-                self._add_conv_message(
-                    Message(
-                        role="assistant",
-                        content=result.content,
+                    for tc in result.tool_calls:
+                        tool_name = tc["function"]["name"]
+                        try:
+                            args = json.loads(tc["function"]["arguments"])
+                        except json.JSONDecodeError:
+                            args = {}
+
+                        confirm = tool_name in ("execute_command", "execute_python")
+                        if confirm:
+                            confirmed = await self._request_confirm(tool_name, args)
+                            if not confirmed:
+                                tool_result = (
+                                    f"[The {tool_name} tool was NOT executed. "
+                                    f"The user cancelled it from the confirmation dialog.]\n\n"
+                                    f"The user chose to cancel the {tool_name} execution."
+                                )
+                                self._add_conv_message(
+                                    Message(
+                                        role="tool",
+                                        content=tool_result,
+                                        tool_call_id=tc.get("id", ""),
+                                        name=tool_name,
+                                    )
+                                )
+                                self._add_tool_widget("tool", f"**Cancelled:** {tool_name}")
+                                continue
+
+                        if self._cancel_requested:
+                            return
+
+                        tool_result = await self.tool_registry.execute(tool_name, **args)
+
+                        tool_result_with_note = (
+                            f"[The {tool_name} tool was executed automatically by the system. "
+                            "The following is the actual output/result, "
+                            f"NOT provided by the user.]\n\n"
+                            f"{tool_result}"
+                        )
+
+                        self._add_conv_message(
+                            Message(
+                                role="tool",
+                                content=tool_result_with_note,
+                                tool_call_id=tc.get("id", ""),
+                                name=tool_name,
+                            )
+                        )
+                        self._add_tool_widget("tool", tool_result)
+
+                    messages = self.conversation.to_messages()
+                else:
+                    self._run_in_main(assistant_widget.set_content, result.content)
+                    self._run_in_main(self._set_assistant_done, assistant_widget)
+                    self._add_conv_message(
+                        Message(
+                            role="assistant",
+                            content=result.content,
+                        )
                     )
-                )
-                break
-        else:
-            error_text = "Error: Maximum tool call rounds reached."
-            self._run_in_main(assistant_widget.set_content, error_text)
-            self._add_conv_message(Message(role="assistant", content=error_text))
+                    if self._tts_enabled and result.content.strip():
+                        self._tts_engine.speak(result.content)
+                    break
+            else:
+                error_text = "Error: Maximum tool call rounds reached."
+                self._run_in_main(assistant_widget.set_content, error_text)
+                self._add_conv_message(Message(role="assistant", content=error_text))
+        finally:
+            if _tts_instruction_added:
+                self.conversation.system_prompt = _orig_system
 
     @staticmethod
     def _set_assistant_done(widget: MessageWidget) -> None:
