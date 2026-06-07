@@ -128,7 +128,14 @@ class ExecuteCommandTool(BaseTool):
             if stderr:
                 if output:
                     output += "\n[stderr]\n"
-                output += stderr.decode("utf-8", errors="replace")
+                error_output = stderr.decode("utf-8", errors="replace")
+                output += error_output
+                if "Permission denied" in error_output:
+                    output += (
+                        "\n\n[AI Tip] This command failed due to 'Permission denied'. "
+                        "If you need root access, please ask me to run it with 'sudo' "
+                        "and I will handle the secure password prompt."
+                    )
 
             exit_code = process.returncode
             result = f"Exit code: {exit_code}\n"
