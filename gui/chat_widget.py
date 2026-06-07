@@ -182,6 +182,7 @@ class ChatWidget(QWidget):
     """Main chat interface with message history and input area."""
 
     conversation_updated = pyqtSignal()
+    conversation_renamed = pyqtSignal(str, str)  # conv_id, title
 
     def __init__(
         self,
@@ -869,8 +870,11 @@ class ChatWidget(QWidget):
 
     def _remove_welcome(self) -> None:
         """Remove the welcome label if present."""
-        if self.welcome_label and self.welcome_label.parent():
-            self.welcome_label.deleteLater()
+        try:
+            if self.welcome_label and self.welcome_label.parent():
+                self.welcome_label.deleteLater()
+                self.welcome_label = None
+        except RuntimeError:
             self.welcome_label = None
 
     def _on_files_pasted(self, files: list[str]) -> None:
@@ -938,6 +942,13 @@ class ChatWidget(QWidget):
         self._scroll_to_bottom()
 
         self.conversation.add("user", text, files=files)
+
+        if self.conversation.title == "New conversation":
+            title = text.strip().replace("\n", " ")[:60]
+            if title:
+                self.conversation.title = title
+                self.conversation_renamed.emit(self.conversation.id, title)
+
         self.conversation_updated.emit()
 
         self.message_input.clear()
@@ -1253,6 +1264,7 @@ class ChatWidget(QWidget):
 
     def load_conversation(self, conversation: Conversation) -> None:
         """Load a different conversation into the chat view."""
+        logger.debug("Loading conversation ID: %s, Title: %s", conversation.id, conversation.title)
         self.conversation = conversation
         self._rebuild_messages()
 
@@ -1260,8 +1272,13 @@ class ChatWidget(QWidget):
         """Rebuild the message display from conversation history."""
         while self.messages_layout.count():
             item = self.messages_layout.takeAt(0)
-            if item and item.widget():
-                item.widget().deleteLater()
+            if item:
+                widget = item.widget()
+                if widget:
+                    widget.setParent(None)
+                    widget.deleteLater()
+
+        self.welcome_label = None
 
         if not self.conversation.entries:
             self._show_welcome()

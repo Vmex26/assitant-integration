@@ -130,8 +130,17 @@ class MainWindow(QMainWindow):
         sidebar = self._create_sidebar()
         splitter.addWidget(sidebar)
 
-        # Chat area (temporary conversation, will be replaced after loading)
+        # Chat area (temporary conversation)
         temp_conv = Conversation(system_prompt=self._default_system_prompt())
+        self._conversations[temp_conv.id] = temp_conv
+        self._active_conversation_id = temp_conv.id
+
+        # Add temp_conv to sidebar list
+        item = QListWidgetItem(f"  {temp_conv.title}")
+        item.setData(Qt.ItemDataRole.UserRole, temp_conv.id)
+        self.conv_list.addItem(item)
+        self.conv_list.setCurrentItem(item)
+
         self.chat_widget = ChatWidget(
             self.model_manager,
             self.tool_registry,
@@ -139,6 +148,7 @@ class MainWindow(QMainWindow):
             config=self.config,
         )
         self.chat_widget.conversation_updated.connect(self._save_active_conversation)
+        self.chat_widget.conversation_renamed.connect(self._on_conversation_renamed)
         splitter.addWidget(self.chat_widget)
 
         splitter.setSizes([250, 950])
@@ -402,8 +412,23 @@ class MainWindow(QMainWindow):
         help_menu.addAction(about_action)
 
     def _new_conversation(self) -> None:
-        """Create a new conversation."""
-        # Save the current conversation first (if any)
+        """Create a new conversation, or switch to an empty one if one exists."""
+        # Check for existing empty conversation
+        for conv_id, conv in self._conversations.items():
+            if len(conv) == 0:
+                self._save_active_conversation()
+                self.chat_widget.load_conversation(conv)
+                self._active_conversation_id = conv_id
+                self.conv_list.blockSignals(True)
+                for i in range(self.conv_list.count()):
+                    item = self.conv_list.item(i)
+                    if item and item.data(Qt.ItemDataRole.UserRole) == conv_id:
+                        self.conv_list.setCurrentItem(item)
+                        break
+                self.conv_list.blockSignals(False)
+                self._update_model_indicator()
+                return
+
         self._save_active_conversation()
 
         conv = Conversation(system_prompt=self._default_system_prompt())
@@ -412,13 +437,12 @@ class MainWindow(QMainWindow):
         self._active_conversation_id = conv_id
 
         # Add to list widget
+        self.conv_list.blockSignals(True)
         item = QListWidgetItem(f"  {conv.title}")
         item.setData(Qt.ItemDataRole.UserRole, conv_id)
         self.conv_list.insertItem(0, item)
         self.conv_list.setCurrentItem(item)
-
-        # Persist immediately
-        self._save_active_conversation()
+        self.conv_list.blockSignals(False)
 
         # Load into chat widget
         self.chat_widget.load_conversation(conv)
@@ -436,10 +460,12 @@ class MainWindow(QMainWindow):
         # Save current conversation before switching
         self._save_active_conversation()
         conv = self._conversations.get(conv_id)
-        if conv:
+        if conv is not None:
             self._active_conversation_id = conv_id
             self.chat_widget.load_conversation(conv)
             self._update_model_indicator()
+        else:
+            logger.error("Conversation %s not found in self._conversations.", conv_id)
 
     def _on_conv_context_menu(self, pos) -> None:
         """Show right-click context menu for conversation list items."""
@@ -454,6 +480,14 @@ class MainWindow(QMainWindow):
             self._rename_conversation(item)
         elif action == delete_action:
             self._delete_conversation(item)
+
+    def _on_conversation_renamed(self, conv_id: str, title: str) -> None:
+        """Update sidebar item when conversation is auto-renamed."""
+        for i in range(self.conv_list.count()):
+            item = self.conv_list.item(i)
+            if item and item.data(Qt.ItemDataRole.UserRole) == conv_id:
+                item.setText(f"  {title}")
+                break
 
     def _rename_conversation(self, item: QListWidgetItem) -> None:
         """Rename a conversation from the sidebar."""
@@ -496,11 +530,13 @@ class MainWindow(QMainWindow):
                 first = remaining[0]
                 self._active_conversation_id = first
                 self.chat_widget.load_conversation(self._conversations[first])
+                self.conv_list.blockSignals(True)
                 for i in range(self.conv_list.count()):
                     it = self.conv_list.item(i)
                     if it.data(Qt.ItemDataRole.UserRole) == first:
                         self.conv_list.setCurrentItem(it)
                         break
+                self.conv_list.blockSignals(False)
             else:
                 self._new_conversation()
 
