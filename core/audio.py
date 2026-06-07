@@ -9,6 +9,10 @@ import numpy as np
 import sounddevice as sd
 import soundfile as sf
 
+from .logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class AudioRecorder:
     """Record audio from microphone to a WAV file with silence detection."""
@@ -156,7 +160,7 @@ class TTSEngine:
             self._play_audio(tmp.name)
             os.unlink(tmp.name)
         except Exception as e:
-            print(f"TTS error: {e}")
+            logger.error("TTS error: %s", e)
         finally:
             with self._speak_lock:
                 self._is_speaking = False
@@ -168,7 +172,7 @@ class TTSEngine:
             sd.play(data, fs)
             sd.wait()
         except Exception as e:
-            print(f"Audio playback error: {e}")
+            logger.error("Audio playback error: %s", e)
 
     def stop(self) -> None:
         self._stop_event.set()

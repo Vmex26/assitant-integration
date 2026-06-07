@@ -10,6 +10,10 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from core.logger import get_logger, set_verbose
+
+logger = get_logger(__name__)
+
 
 DEFAULT_CONFIG_PATH = Path.home() / ".ai_assistant" / "config.json"
 
@@ -21,6 +25,7 @@ class Config:
         self.config_path = config_path or DEFAULT_CONFIG_PATH
         self._data: Dict[str, Any] = self._defaults()
         self._load()
+        set_verbose(self.verbose)
 
     @staticmethod
     def _defaults() -> Dict[str, Any]:
@@ -63,6 +68,7 @@ class Config:
             "font_size": 13,
             "language": "es",
             "max_history": 100,
+            "verbose": False,
             "tools_enabled": {
                 "read_file": True,
                 "write_file": True,
@@ -168,6 +174,16 @@ class Config:
     @language.setter
     def language(self, value: str) -> None:
         self._data["language"] = value
+        self.save()
+
+    @property
+    def verbose(self) -> bool:
+        return self._data.get("verbose", False)
+
+    @verbose.setter
+    def verbose(self, value: bool) -> None:
+        self._data["verbose"] = value
+        set_verbose(value)
         self.save()
 
     @property

@@ -30,10 +30,10 @@
 - [x] Bug 19: `message_widget.py` — `append_stream_text` re-renderea full content con `set_markdown` en vez de chunks independientes
 
 ## Fase 3 — Feature: Verbosity/Debug parameter
-- [ ] Añadir `verbose: bool` en `Config`
-- [ ] Checkbox "Debug mode" en Settings → Interface
-- [ ] Logger centralizado con `logging` module (INFO/DEBUG/ERROR)
-- [ ] Reemplazar `print()` por `logger.debug()` / `logger.error()`
+- [x] Añadir `verbose: bool` en `Config`
+- [x] Checkbox "Debug mode" en Settings → Interface
+- [x] Logger centralizado con `logging` module (INFO/DEBUG/ERROR)
+- [x] Reemplazar `print()` por `logger.debug()` / `logger.error()`
 - [ ] Panel de debug opcional (toggle con atajo)
 
 ## Fase 4 — Feature: faster-whisper

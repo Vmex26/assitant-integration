@@ -8,12 +8,15 @@ import traceback
 from typing import Any, Dict, Optional, Tuple, Type
 
 from core.config import Config
+from core.logger import get_logger
 from core.providers.base import BaseProvider
 from core.providers.openai_provider import OpenAIProvider
 from core.providers.anthropic_provider import AnthropicProvider
 from core.providers.ollama_provider import OllamaProvider
 from core.providers.gemini_provider import GeminiProvider
 from core.providers.openai_compatible_provider import OpenAICompatibleProvider
+
+logger = get_logger(__name__)
 
 
 class ProviderError(Exception):
@@ -61,7 +64,7 @@ class ModelManager:
                 self._instances[provider_name] = provider_cls(provider_config)
             except Exception as e:
                 error_msg = f"Failed to initialize {provider_name}: {e}"
-                print(f"Provider init error: {error_msg}\n{traceback.format_exc()}")
+                logger.error("Provider init error: %s\n%s", error_msg, traceback.format_exc())
                 return None, error_msg
         return self._instances[provider_name], None
 

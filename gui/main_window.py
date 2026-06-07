@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
 
 from core.config import Config
 from core.conversation import Conversation
+from core.logger import get_logger
 from core.model_manager import ModelManager
 from core.storage import ConversationStorage
 from core.tools.base import ToolRegistry
@@ -34,6 +35,8 @@ from core.tools.package_tools import SearchPackageTool, ShowPKGBUILDTool
 from core.tools.web_tools import WebFetchTool, WebSearchTool, DownloadFileTool
 
 from .chat_widget import ChatWidget
+
+logger = get_logger(__name__)
 from .log_dialog import LogDialog
 from .service_dialog import ServiceDialog
 from .settings_dialog import SettingsDialog
@@ -99,7 +102,7 @@ class MainWindow(QMainWindow):
             try:
                 self.storage.save_conversation(conv)
             except Exception as e:
-                print(f"Warning: Failed to save conversation: {e}")
+                logger.warning("Failed to save conversation: %s", e)
 
     def _init_ui(self) -> None:
         self.setWindowTitle("AI Assistant Integrer")

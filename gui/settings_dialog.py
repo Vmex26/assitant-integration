@@ -320,6 +320,9 @@ class SettingsDialog(QDialog):
         if idx >= 0:
             self.lang_combo.setCurrentIndex(idx)
         lang_layout.addRow("Language:", self.lang_combo)
+        self.verbose_check = QCheckBox("Show debug messages in console")
+        self.verbose_check.setChecked(self.config.verbose)
+        lang_layout.addRow("Debug:", self.verbose_check)
         layout.addWidget(lang_group)
 
         layout.addStretch()
@@ -382,6 +385,9 @@ class SettingsDialog(QDialog):
 
         # Language
         self.config.language = self.lang_combo.currentData()
+
+        # Verbose logging
+        self.config.verbose = self.verbose_check.isChecked()
 
         # Tools
         for tool_name, check in self.tool_checks.items():

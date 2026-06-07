@@ -4,7 +4,7 @@
 - **Preferred workflow**: Plan first, then implement step by step. Before making changes, outline what will be done and in what order. Implement one phase at a time, verify, then proceed.
 - **Override**: If the user says "implement X, Y, Z all at once" or similar, proceed directly without planning — just warn once: "Preferimos planificar primero, pero voy directo como pides." The warning is advisory, not blocking.
 - **Commit per phase**: After completing each phase (all bugs/features in that phase verified working), commit with a descriptive message. Do not commit mid-phase.
-- **Stuck after 6 attempts**: If a single bug or feature cannot be fixed after 6 distinct attempts, stop. Create a file `ERROR-<description>.md` in the project root documenting: the error, all attempts made (what was tried and why it failed), and possible remaining solutions. Then proceed to the next item.
+- **Stuck after 6 attempts**: If a single bug or feature cannot be fixed after 6 distinct attempts, stop completely. Create a file `ERROR-<description>.md` in the project root documenting: the error, all attempts made (what was tried and why it failed), and possible remaining solutions. Do not continue — wait for the user.
 
 ## Run & Verify
 ```bash

@@ -28,9 +28,12 @@ from PyQt6.QtWidgets import (
 
 from core.audio import AudioRecorder, TTSEngine, Transcriber
 from core.conversation import Conversation, Message
+from core.logger import get_logger
 from core.model_manager import ModelManager
 from core.tools.base import ToolRegistry
 from utils.helpers import format_api_error
+
+logger = get_logger(__name__)
 
 from .message_widget import MessageWidget
 
@@ -103,7 +106,7 @@ class MessageInput(QPlainTextEdit):
             self._temp_files.append(tmp.name)
             return tmp.name
         except Exception as e:
-            print(f"Failed to save clipboard image: {e}")
+            logger.error("Failed to save clipboard image: %s", e)
             return None
 
     def cleanup_temp_files(self) -> None:
@@ -208,7 +211,7 @@ class ChatWidget(QWidget):
         self._async_worker.stop()
         self._async_thread.quit()
         if not self._async_thread.wait(5000):
-            print("Warning: worker thread did not finish in time")
+            logger.warning("Worker thread did not finish in time")
         self.message_input.cleanup_temp_files()
 
     def _init_ui(self) -> None:
@@ -814,7 +817,7 @@ class ChatWidget(QWidget):
             except queue.Empty:
                 break
             except Exception as e:
-                print(f"Error in queued call {func}: {e}")
+                logger.error("Error in queued call %s: %s", func, e)
 
     def _run_async(self, coro) -> None:
         """Submit coroutine to background worker without blocking the GUI."""
