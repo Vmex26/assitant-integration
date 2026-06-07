@@ -135,6 +135,7 @@ class MainWindow(QMainWindow):
             self.model_manager,
             self.tool_registry,
             temp_conv,
+            config=self.config,
         )
         self.chat_widget.conversation_updated.connect(self._save_active_conversation)
         splitter.addWidget(self.chat_widget)

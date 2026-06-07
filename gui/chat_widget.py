@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.audio import AudioRecorder, TTSEngine, Transcriber
+from core.config import Config
 from core.conversation import Conversation, Message
 from core.logger import get_logger
 from core.model_manager import ModelManager
@@ -171,12 +172,14 @@ class ChatWidget(QWidget):
         model_manager: ModelManager,
         tool_registry: ToolRegistry,
         conversation: Conversation,
+        config: Optional[Config] = None,
         parent: Optional[QWidget] = None,
     ):
         super().__init__(parent)
         self.model_manager = model_manager
         self.tool_registry = tool_registry
         self.conversation = conversation
+        self._config = config
         self._attached_files: List[str] = []
         self._is_processing = False
         self._cancel_requested = False
@@ -184,6 +187,12 @@ class ChatWidget(QWidget):
         # Audio recording & TTS
         self._audio_recorder = AudioRecorder()
         self._transcriber = Transcriber()
+        if self._config:
+            self._transcriber.configure(
+                model_size=self._config.whisper_model_size,
+                device=self._config.whisper_device,
+                compute_type=self._config.whisper_compute_type,
+            )
         self._tts_engine = TTSEngine()
 
         # Background worker for async AI processing

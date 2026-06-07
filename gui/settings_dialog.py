@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from core.audio import Transcriber
 from core.config import Config
 
 
@@ -162,6 +163,7 @@ class SettingsDialog(QDialog):
         tabs.addTab(self._providers_tab(), "Providers")
         tabs.addTab(self._tools_tab(), "Tools")
         tabs.addTab(self._appearance_tab(), "Appearance")
+        tabs.addTab(self._speech_tab(), "Speech")
         layout.addWidget(tabs)
 
         # Buttons
@@ -328,6 +330,39 @@ class SettingsDialog(QDialog):
         layout.addStretch()
         return widget
 
+    def _speech_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        group = QGroupBox("Whisper (Speech Recognition)")
+        form = QFormLayout(group)
+
+        self.whisper_model_combo = QComboBox()
+        self.whisper_model_combo.addItems(["tiny", "base", "small", "medium", "large-v3"])
+        self.whisper_model_combo.setCurrentText(self.config.whisper_model_size)
+        form.addRow("Model Size:", self.whisper_model_combo)
+
+        self.whisper_device_combo = QComboBox()
+        self.whisper_device_combo.addItems(["auto", "cpu", "cuda"])
+        self.whisper_device_combo.setCurrentText(self.config.whisper_device)
+        form.addRow("Device:", self.whisper_device_combo)
+
+        self.whisper_compute_combo = QComboBox()
+        self.whisper_compute_combo.addItems(["auto", "float16", "int8_float16", "int8"])
+        self.whisper_compute_combo.setCurrentText(self.config.whisper_compute_type)
+        form.addRow("Compute Type:", self.whisper_compute_combo)
+
+        hint = QLabel(
+            "Changes take effect on the next recording.\n"
+            "Model is loaded lazily on first use."
+        )
+        hint.setStyleSheet("color: #888; font-size: 11px;")
+        group.layout().addWidget(hint)
+
+        layout.addWidget(group)
+        layout.addStretch()
+        return widget
+
     @staticmethod
     def _slider_layout(slider: QSlider, label: QLabel) -> QWidget:
         container = QWidget()
@@ -388,6 +423,11 @@ class SettingsDialog(QDialog):
 
         # Verbose logging
         self.config.verbose = self.verbose_check.isChecked()
+
+        # Whisper
+        self.config.whisper_model_size = self.whisper_model_combo.currentText()
+        self.config.whisper_device = self.whisper_device_combo.currentText()
+        self.config.whisper_compute_type = self.whisper_compute_combo.currentText()
 
         # Tools
         for tool_name, check in self.tool_checks.items():

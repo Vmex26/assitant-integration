@@ -109,19 +109,50 @@ class AudioRecorder:
 
 
 class Transcriber:
-    """Transcribe audio using Google's free Speech Recognition API."""
+    """Transcribe audio using faster-whisper (local)."""
 
-    def transcribe(self, audio_path: str) -> Optional[str]:
-        import speech_recognition as sr
-        recognizer = sr.Recognizer()
-        with sr.AudioFile(audio_path) as source:
-            audio = recognizer.record(source)
+    def __init__(self) -> None:
+        self._model = None
+        self._model_size: str = "small"
+        self._device: str = "auto"
+        self._compute_type: str = "auto"
+
+    def configure(self, model_size: str = "small", device: str = "auto", compute_type: str = "auto") -> None:
+        """Update model parameters (takes effect on next transcribe)."""
+        self._model_size = model_size
+        self._device = device
+        self._compute_type = compute_type
+        self._model = None  # force reload on next call
+
+    def _load_model(self) -> None:
+        if self._model is not None:
+            return
         try:
-            return recognizer.recognize_google(audio, language="es-ES,en-US")
-        except sr.UnknownValueError:
-            return None
-        except sr.RequestError as e:
-            return f"[Error: Speech recognition service unavailable: {e}]"
+            from faster_whisper import WhisperModel
+        except ImportError:
+            raise RuntimeError(
+                "faster-whisper is not installed. Run: pip install faster-whisper"
+            )
+        device = self._device
+        if device == "auto":
+            import torch
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        compute = self._compute_type
+        if compute == "auto":
+            compute = "float16" if device == "cuda" else "int8"
+        logger.info("Loading whisper model '%s' on %s (compute=%s)", self._model_size, device, compute)
+        self._model = WhisperModel(self._model_size, device=device, compute_type=compute)
+
+    def transcribe(self, audio_path: str, language: str = "es") -> Optional[str]:
+        """Transcribe audio file using faster-whisper."""
+        self._load_model()
+        try:
+            segments, info = self._model.transcribe(audio_path, language=language, beam_size=5)
+            text = " ".join(seg.text for seg in segments)
+            return text.strip() or None
+        except Exception as e:
+            logger.error("Whisper transcription error: %s", e)
+            return f"[Error: Transcription failed: {e}]"
 
 
 class TTSEngine:

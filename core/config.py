@@ -67,6 +67,11 @@ class Config:
             "theme": "dark",
             "font_size": 13,
             "language": "es",
+            "whisper": {
+                "model_size": "small",
+                "device": "auto",
+                "compute_type": "auto",
+            },
             "max_history": 100,
             "verbose": False,
             "tools_enabled": {
@@ -184,6 +189,33 @@ class Config:
     def verbose(self, value: bool) -> None:
         self._data["verbose"] = value
         set_verbose(value)
+        self.save()
+
+    @property
+    def whisper_model_size(self) -> str:
+        return self._data.get("whisper", {}).get("model_size", "small")
+
+    @whisper_model_size.setter
+    def whisper_model_size(self, value: str) -> None:
+        self._data.setdefault("whisper", {})["model_size"] = value
+        self.save()
+
+    @property
+    def whisper_device(self) -> str:
+        return self._data.get("whisper", {}).get("device", "auto")
+
+    @whisper_device.setter
+    def whisper_device(self, value: str) -> None:
+        self._data.setdefault("whisper", {})["device"] = value
+        self.save()
+
+    @property
+    def whisper_compute_type(self) -> str:
+        return self._data.get("whisper", {}).get("compute_type", "auto")
+
+    @whisper_compute_type.setter
+    def whisper_compute_type(self, value: str) -> None:
+        self._data.setdefault("whisper", {})["compute_type"] = value
         self.save()
 
     @property
