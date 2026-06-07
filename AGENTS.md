@@ -12,14 +12,14 @@
 source venv/bin/activate && python3 main.py
 ```
 
-### Pre-commit verification (run before each commit)
+### Pre-commit verification (automatic via pre-commit hooks)
 ```bash
-source venv/bin/activate && ruff check . && ruff format . --check && basedpyright .
+source venv/bin/activate && pre-commit run --all-files
 ```
 
-### Run tests (when pytest is configured)
+### Manual verification (same as pre-commit but explicit)
 ```bash
-source venv/bin/activate && python -m pytest tests/ -v
+source venv/bin/activate && ruff check . && ruff format . --check && basedpyright . && python -m pytest tests/ -v
 ```
 
 - After each phase, test: (1) app starts without crash, (2) send a text message, (3) verify no console errors.
