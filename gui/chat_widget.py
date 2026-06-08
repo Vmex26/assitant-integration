@@ -1108,6 +1108,12 @@ class ChatWidget(QWidget):
                             args = {}
 
                         confirm = tool_name in ("execute_command", "execute_python")
+                        
+                        # Smart Sudo: Force confirmation if sudo is used but not explicitly confirmed by user
+                        if tool_name == "execute_command" and "sudo" in args.get("command", ""):
+                            if not args.get("user_confirmed", False):
+                                confirm = True
+                        
                         if confirm:
                             confirmed = await self._request_confirm(tool_name, args)
                             if not confirmed:

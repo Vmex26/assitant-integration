@@ -47,6 +47,11 @@ class ExecuteCommandTool(BaseTool):
                     "description": "Maximum execution time in seconds (default: 60)",
                     "default": 60,
                 },
+                "user_confirmed": {
+                    "type": "boolean",
+                    "description": "Set to True only if the user explicitly commanded the use of sudo for this action.",
+                    "default": False,
+                },
             },
             "required": ["command"],
         }
