@@ -1,143 +1,126 @@
 """Message bubble widget for rendering chat messages with markdown support."""
 
 import re
-import typing
 from collections.abc import Callable
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QFont, QPixmap, QTextCursor
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QSizePolicy,
-    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 
 
-class MarkdownTextBrowser(QTextBrowser):
-    """QTextBrowser with improved markdown and code rendering."""
+def markdown_to_html(text: str) -> str:
+    """Convert markdown text to HTML with inline styles."""
+    import html as html_mod
 
-    def __init__(self, parent: QWidget | None = None):
-        super().__init__(parent)
-        self.setOpenExternalLinks(True)
-        self.setReadOnly(True)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    text = html_mod.escape(text)
 
-    def set_markdown(self, text: str) -> None:
-        """Set markdown content with syntax highlighting."""
-        html = self._markdown_to_html(text)
-        self.setHtml(html)
-        QTimer.singleShot(0, self._adjust_height)
+    pre_style = (
+        "background-color: #1a1a1a; color: #d4d4d4; padding: 8px;"
+        " font-family: 'Courier New', monospace;"
+    )
+    inline_code_style = (
+        "background-color: #1a1a1a; color: #a8d8ea; padding: 1px 4px;"
+        " font-family: 'Courier New', monospace;"
+    )
 
-    def append_markdown(self, text: str) -> None:
-        """Append streaming text to existing content."""
-        cursor = self.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        self.setTextCursor(cursor)
-        html = self._markdown_to_html(text)
-        self.insertHtml(html)
-        QTimer.singleShot(0, self._adjust_height)
+    def replace_code_block(match: re.Match[str]) -> str:
+        lang = match.group(1) or ""
+        code = match.group(2)
+        lang_class = f' class="language-{lang}"' if lang else ""
+        return f'<pre style="{pre_style}"><code{lang_class}>{code}</code></pre>'
 
-    @typing.override
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        QTimer.singleShot(0, self._adjust_height)
+    text = re.sub(
+        r"```(\w*)\n(.*?)```",
+        replace_code_block,
+        text,
+        flags=re.DOTALL,
+    )
 
-    def _adjust_height(self) -> None:
-        """Auto-resize to fit content."""
-        try:
-            if self.sipIsDeleted():
-                return
-            w = self.viewport().width()
-            if w > 0:
-                self.document().setTextWidth(w)
-            doc_height = self.document().size().height()
-            h = min(int(doc_height) + 12, 800)
-            h = max(h, 30)
-            self.setFixedHeight(h)
-        except Exception:
-            pass
+    text = re.sub(r"`([^`]+)`", f'<code style="{inline_code_style}">\\1</code>', text)
 
-    @staticmethod
-    def _markdown_to_html(text: str) -> str:
-        """Convert markdown text to HTML with basic formatting."""
-        import html as html_mod
+    text = re.sub(r"\*\*\*(.+?)\*\*\*", r"<strong><em>\1</em></strong>", text)
+    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+    text = re.sub(r"\*(.+?)\*", r"<em>\1</em>", text)
 
-        # Escape HTML entities first
-        text = html_mod.escape(text)
+    text = re.sub(
+        r"^### (.+)$",
+        r'<h3 style="color: #ddd; font-size: 14px;">\1</h3>',
+        text,
+        flags=re.MULTILINE,
+    )
+    text = re.sub(
+        r"^## (.+)$",
+        r'<h2 style="color: #eee; font-size: 16px;">\1</h2>',
+        text,
+        flags=re.MULTILINE,
+    )
+    text = re.sub(
+        r"^# (.+)$",
+        r'<h1 style="color: #fff; font-size: 18px;">\1</h1>',
+        text,
+        flags=re.MULTILINE,
+    )
 
-        # Code blocks (```...```) with syntax highlighting hint
-        def replace_code_block(match: re.Match[str]) -> str:
-            lang = match.group(1) or ""
-            code = match.group(2)
-            # We don't do full syntax highlighting here, but add language class
-            lang_class = f' class="language-{lang}"' if lang else ""
-            return f"<pre><code{lang_class}>{code}</code></pre>"
+    text = re.sub(
+        r"\[([^\]]+)\]\(([^)]+)\)",
+        r'<a href="\2" style="color: #4fc3f7;">\1</a>',
+        text,
+    )
 
-        text = re.sub(
-            r"```(\w*)\n(.*?)```",
-            replace_code_block,
-            text,
-            flags=re.DOTALL,
-        )
+    text = re.sub(
+        r"^\s*[-*] (.+)$", r'<li style="margin: 2px 0;">\1</li>', text, flags=re.MULTILINE
+    )
+    text = re.sub(
+        r"(<li.*</li>\n?)+", r'<ul style="margin: 4px 0;">\g<0></ul>', text, flags=re.DOTALL
+    )
 
-        # Inline code
-        text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
+    text = re.sub(
+        r"^\s*\d+\. (.+)$", r'<li style="margin: 2px 0;">\1</li>', text, flags=re.MULTILINE
+    )
+    text = re.sub(
+        r"(<li.*</li>\n?)+",
+        r'<ol style="margin: 4px 0;">\g<0></ol>',
+        text,
+        flags=re.DOTALL,
+    )
 
-        # Bold and italic
-        text = re.sub(r"\*\*\*(.+?)\*\*\*", r"<strong><em>\1</em></strong>", text)
-        text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
-        text = re.sub(r"\*(.+?)\*", r"<em>\1</em>", text)
+    text = re.sub(
+        r"^&gt; (.+)$",
+        r"<blockquote "
+        r'style="border-left: 3px solid #555; margin: 8px 0;'
+        r' padding: 4px 12px; color: #aaa;"'
+        r">\1</blockquote>",
+        text,
+        flags=re.MULTILINE,
+    )
 
-        # Headers
-        text = re.sub(r"^### (.+)$", r"<h3>\1</h3>", text, flags=re.MULTILINE)
-        text = re.sub(r"^## (.+)$", r"<h2>\1</h2>", text, flags=re.MULTILINE)
-        text = re.sub(r"^# (.+)$", r"<h1>\1</h1>", text, flags=re.MULTILINE)
+    text = re.sub(
+        r"^---+$",
+        r'<hr style="border: none; border-top: 1px solid #444;">',
+        text,
+        flags=re.MULTILINE,
+    )
 
-        # Links
-        text = re.sub(
-            r"\[([^\]]+)\]\(([^)]+)\)",
-            r'<a href="\2">\1</a>',
-            text,
-        )
+    paragraphs = text.split("\n\n")
+    processed = []
+    for para in paragraphs:
+        stripped = para.strip()
+        if not stripped:
+            continue
+        if not stripped.startswith(("<h", "<ul", "<ol", "<li", "<pre", "<blockquote", "<hr")):
+            stripped = f"<p>{stripped}</p>"
+        processed.append(stripped)
 
-        # Unordered lists
-        text = re.sub(r"^\s*[-*] (.+)$", r"<li>\1</li>", text, flags=re.MULTILINE)
-        text = re.sub(r"(<li>.*</li>\n?)+", r"<ul>\g<0></ul>", text, flags=re.DOTALL)
-
-        # Ordered lists
-        text = re.sub(r"^\s*\d+\. (.+)$", r"<li>\1</li>", text, flags=re.MULTILINE)
-        text = re.sub(
-            r"(<li>.*</li>\n?)+",
-            r"<ol>\g<0></ol>",
-            text,
-            flags=re.DOTALL,
-        )
-
-        # Blockquotes
-        text = re.sub(r"^&gt; (.+)$", r"<blockquote>\1</blockquote>", text, flags=re.MULTILINE)
-
-        # Horizontal rules
-        text = re.sub(r"^---+$", r"<hr>", text, flags=re.MULTILINE)
-
-        # Paragraphs (double newlines)
-        paragraphs = text.split("\n\n")
-        processed = []
-        for para in paragraphs:
-            stripped = para.strip()
-            if not stripped:
-                continue
-            if not stripped.startswith(("<h", "<ul", "<ol", "<li", "<pre", "<blockquote", "<hr")):
-                stripped = f"<p>{stripped}</p>"
-            processed.append(stripped)
-
-        return "\n".join(processed)
+    return "\n".join(processed)
 
 
 class MessageWidget(QFrame):
@@ -186,9 +169,10 @@ class MessageWidget(QFrame):
                 layout.addWidget(file_widget)
 
         # Message content — plain text for tool, markdown for others
+        self.text_label = QLabel()
+        self.text_label.setWordWrap(True)
         if self.role == "tool":
-            self.text_label = QLabel(self._full_content)
-            self.text_label.setWordWrap(True)
+            self.text_label.setText(self._full_content)
             self.text_label.setStyleSheet("""
                 QLabel {
                     background: transparent;
@@ -198,12 +182,18 @@ class MessageWidget(QFrame):
                     padding: 4px;
                 }
             """)
-            layout.addWidget(self.text_label)
         else:
-            self.text_browser = MarkdownTextBrowser()
-            self.text_browser.set_markdown(self._full_content)
-            self.text_browser.setStyleSheet(self._get_content_style())
-            layout.addWidget(self.text_browser)
+            self.text_label.setTextFormat(Qt.TextFormat.RichText)
+            self.text_label.setText(markdown_to_html(self._full_content))
+            self.text_label.setStyleSheet("""
+                QLabel {
+                    background: transparent;
+                    color: #e0e0e0;
+                    font-size: 13px;
+                    padding: 4px;
+                }
+            """)
+        layout.addWidget(self.text_label)
 
         # Button row
         btn_layout = QHBoxLayout()
@@ -288,44 +278,6 @@ class MessageWidget(QFrame):
             }}
         """
 
-    def _get_content_style(self) -> str:
-        return """
-            QTextBrowser {
-                background: transparent;
-                color: #e0e0e0;
-                font-size: 13px;
-                border: none;
-                padding: 4px;
-            }
-            QTextBrowser h1 { color: #fff; font-size: 18px; }
-            QTextBrowser h2 { color: #eee; font-size: 16px; }
-            QTextBrowser h3 { color: #ddd; font-size: 14px; }
-            QTextBrowser code {
-                background-color: #1a1a1a;
-                color: #a8d8ea;
-                padding: 1px 4px;
-                border-radius: 3px;
-                font-family: 'Courier New', monospace;
-            }
-            QTextBrowser pre {
-                background-color: #1a1a1a;
-                color: #d4d4d4;
-                padding: 8px;
-                border-radius: 4px;
-                font-family: 'Courier New', monospace;
-            }
-            QTextBrowser a { color: #4fc3f7; }
-            QTextBrowser blockquote {
-                border-left: 3px solid #555;
-                margin: 8px 0;
-                padding: 4px 12px;
-                color: #aaa;
-            }
-            QTextBrowser hr { border: none; border-top: 1px solid #444; }
-            QTextBrowser ul, QTextBrowser ol { margin: 4px 0; }
-            QTextBrowser li { margin: 2px 0; }
-        """
-
     def _create_file_attachment(self, file_path: str) -> QWidget | None:
         """Create a widget showing an attached file."""
         path = Path(file_path)
@@ -373,13 +325,14 @@ class MessageWidget(QFrame):
             if self.role == "tool":
                 self.text_label.setText(self._full_content)
             else:
-                self.text_browser.set_markdown(self._full_content)
+                self.text_label.setText(markdown_to_html(self._full_content))
         except RuntimeError:
             pass
 
     def _copy_content(self) -> None:
         """Copy message content to clipboard."""
         from PyQt6.QtGui import QGuiApplication
+
         QGuiApplication.clipboard().setText(self._full_content)
 
     def set_content(self, content: str) -> None:
@@ -389,6 +342,6 @@ class MessageWidget(QFrame):
             if self.role == "tool":
                 self.text_label.setText(content)
             else:
-                self.text_browser.set_markdown(content)
+                self.text_label.setText(markdown_to_html(content))
         except RuntimeError:
             pass
