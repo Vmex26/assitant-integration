@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as _np
 import sounddevice as _sd
-from PyQt6.QtCore import QObject, Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QKeyEvent
 from PyQt6.QtWidgets import (
     QDialog,
@@ -227,6 +227,7 @@ class ChatWidget(QWidget):
         self._async_thread.start()
 
         self._init_ui()
+        self._dump_layout_state("init")
         self._connect_signals()
 
         def _preload_whisper() -> None:
@@ -300,10 +301,10 @@ class ChatWidget(QWidget):
         self.messages_container.setStyleSheet("background-color: #1a1a1a;")
 
         self.scroll_area.setWidget(self.messages_container)
+        self.scroll_area.viewport().installEventFilter(self)
         layout.addWidget(self.scroll_area, 1)
 
         # Welcome overlay (shown when chat is empty)
-        self.welcome_label = QLabel()
         self._show_welcome()
 
         # Thinking indicator
@@ -631,11 +632,11 @@ class ChatWidget(QWidget):
         call_instruction = (
             "\n\n---\n"
             "Voice call mode is active. IMPORTANT RULES:\n"
-            "- NO MARKDOWN: Respond in PLAIN TEXT. NO **bold**, NO headers, NO code blocks, NO lists. Everything is read aloud by TTS.\n"
-            "- TOOL ACCESS: You HAVE access to run shell commands and open GUI applications. CALL THE TOOL FUNCTION DIRECTLY to execute commands. DO NOT describe the command in your speech.\n"
+            "- NO MARKDOWN: Respond in PLAIN TEXT. NO **bold**, NO headers, NO code blocks, NO lists. Everything is read aloud by TTS.\n"  # noqa: E501
+            "- TOOL ACCESS: You HAVE access to run shell commands and open GUI applications. CALL THE TOOL FUNCTION DIRECTLY to execute commands. DO NOT describe the command in your speech.\n"  # noqa: E501
             "- GUI RULES: To run GUI apps, MUST use EXACTLY: `command > /dev/null 2>&1 & disown`.\n"
             "- KEEP IT BRIEF: Responses should be conversational and short.\n"
-            "- ENDING CALLS: NEVER end the call based on task completion or context. You MUST ONLY append [END_CALL] to your response if the user explicitly commands you to (e.g., 'termina la llamada', 'cuelga', 'end the call', 'hang up'). Do NOT infer it's time to hang up, even if the task is finished.\n"
+            "- ENDING CALLS: NEVER end the call based on task completion or context. You MUST ONLY append [END_CALL] to your response if the user explicitly commands you to (e.g., 'termina la llamada', 'cuelga', 'end the call', 'hang up'). Do NOT infer it's time to hang up, even if the task is finished.\n"  # noqa: E501
             "- For medium-risk actions, ask the user verbally and proceed — no GUI dialogs.\n"
             "- Do NOT attempt sudo, destructive, or irreversible commands.\n"
             "- Transcription may have errors. If garbled, politely ask to repeat.\n"
@@ -697,7 +698,7 @@ class ChatWidget(QWidget):
         """Add user message widget to UI (main thread only)."""
         self._remove_welcome()
         user_widget = MessageWidget("user", text)
-        self.messages_layout.addWidget(user_widget)
+        self._add_message_widget(user_widget)
         self._scroll_to_bottom()
 
     def _get_last_assistant_text(self) -> str | None:
@@ -868,6 +869,11 @@ class ChatWidget(QWidget):
         except RuntimeError:
             self.welcome_label = None
 
+    def _add_message_widget(self, widget: QWidget) -> None:
+        """Add a widget to the messages layout."""
+        self.messages_layout.addWidget(widget)
+        QTimer.singleShot(0, self._sync_container_height)
+
     def _on_files_pasted(self, files: list[str]) -> None:
         """Handle files pasted from clipboard."""
         for f in files:
@@ -905,7 +911,7 @@ class ChatWidget(QWidget):
     def _show_error(self, text: str) -> None:
         """Display an error message in the chat."""
         widget = MessageWidget("system", text)
-        self.messages_layout.addWidget(widget)
+        self._add_message_widget(widget)
         self._scroll_to_bottom()
 
     def _clear_attachments(self) -> None:
@@ -922,14 +928,16 @@ class ChatWidget(QWidget):
         if not text and not self._attached_files:
             return
 
+        self._dump_layout_state("on_send_before")
         self._remove_welcome()
         self._send_message(text)
 
     def _send_message(self, text: str) -> None:
         """Send a message and process the response."""
         files = list(self._attached_files)
+        logger.debug("send_message: text=%r files=%s", text[:60], files)
         user_widget = MessageWidget("user", text, files=files)
-        self.messages_layout.addWidget(user_widget)
+        self._add_message_widget(user_widget)
         self._scroll_to_bottom()
 
         self.conversation.add("user", text, files=files)
@@ -974,7 +982,7 @@ class ChatWidget(QWidget):
                     return
                 on_tts = _tts_cb if tts_enabled else None
                 widget = MessageWidget("assistant", "", is_streaming=True, on_tts=on_tts)
-                self.messages_layout.addWidget(widget)
+                self._add_message_widget(widget)
                 self._scroll_to_bottom()
                 future.set_result(widget)
             except Exception as e:
@@ -1009,7 +1017,7 @@ class ChatWidget(QWidget):
 
     def _do_add_tool_widget(self, role: str, content: str) -> None:
         widget = MessageWidget(role, content)
-        self.messages_layout.addWidget(widget)
+        self._add_message_widget(widget)
         self._scroll_to_bottom()
 
     def _add_conv_message(self, msg: Message) -> None:
@@ -1021,6 +1029,7 @@ class ChatWidget(QWidget):
         """Append streaming text and scroll (main thread)."""
         widget.append_stream_text(chunk)
         self._scroll_to_bottom()
+        self._sync_container_height()
 
     # ---- Async processing ----
 
@@ -1108,12 +1117,12 @@ class ChatWidget(QWidget):
                             args = {}
 
                         confirm = tool_name in ("execute_command", "execute_python")
-                        
-                        # Smart Sudo: Force confirmation if sudo is used but not explicitly confirmed by user
+
+                        # Smart Sudo: Force confirmation if sudo is used but not explicitly confirmed by user  # noqa: E501
                         if tool_name == "execute_command" and "sudo" in args.get("command", ""):
                             if not args.get("user_confirmed", False):
                                 confirm = True
-                        
+
                         if confirm:
                             confirmed = await self._request_confirm(tool_name, args)
                             if not confirmed:
@@ -1192,12 +1201,67 @@ class ChatWidget(QWidget):
             self._cancel_requested = False
             self.thinking_label.setText("  \u23f3 Assistant is thinking...")
 
+    @typing.override
+    def eventFilter(self, obj: QObject, event: QEvent | None) -> bool:
+        """Sync container height when viewport resizes."""
+        if event and obj == self.scroll_area.viewport() and event.type() == QEvent.Type.Resize:
+            self._sync_container_height()
+        return super().eventFilter(obj, event)
+
+    def _sync_container_height(self) -> None:
+        """Set container height to match layout's actual content height."""
+        try:
+            vp = self.scroll_area.viewport()
+            if vp:
+                hfw = self.messages_layout.heightForWidth(vp.width())
+                if hfw > 0:
+                    self.messages_container.setFixedHeight(hfw)
+        except RuntimeError:
+            pass
+
+    def _dump_layout_state(self, tag: str = "") -> None:
+        """Debug: log scroll area / container / layout dimensions."""
+        try:
+            vp = self.scroll_area.viewport()
+            sb = self.scroll_area.verticalScrollBar()
+            cnt = self.messages_layout.count()
+            items_info = []
+            for i in range(cnt):
+                item = self.messages_layout.itemAt(i)
+                if item is None:
+                    items_info.append("(None)")
+                elif item.widget():
+                    w = item.widget()
+                    items_info.append(
+                        f"Widget[{i}]={type(w).__name__} h={w.height()} "
+                        f"minH={w.minimumSizeHint().height()}"
+                    )
+                elif item.spacerItem():
+                    si = item.spacerItem()
+                    items_info.append(
+                        f"Spacer[{i}] sz=({si.sizeHint().width()},{si.sizeHint().height()})"
+                    )
+                else:
+                    items_info.append(f"Item[{i}] type={type(item).__name__}")
+            logger.debug(
+                "LAYOUT %s — vp_h=%d container_h=%d sb_max=%d cnt=%d items=[%s]",
+                tag,
+                vp.height(),
+                self.messages_container.height(),
+                sb.maximum(),
+                cnt,
+                " | ".join(items_info),
+            )
+        except RuntimeError:
+            pass
+
     def _scroll_to_bottom(self) -> None:
         """Scroll the message area to the bottom."""
         QTimer.singleShot(50, self._do_scroll_to_bottom)
 
     def _do_scroll_to_bottom(self) -> None:
-        """Inner scroll to bottom (safe to call after widget deletion)."""
+        """Scroll the chat to the absolute bottom (called via timer)."""
+        self._dump_layout_state("scroll")
         try:
             self.scroll_area.verticalScrollBar().setValue(
                 self.scroll_area.verticalScrollBar().maximum()
@@ -1280,6 +1344,7 @@ class ChatWidget(QWidget):
         if not self.conversation.entries:
             self._show_welcome()
             self._scroll_to_bottom()
+            logger.debug("rebuild_messages: empty conv, showed welcome")
             return
 
         def _tts_cb(text: str) -> None:
@@ -1292,8 +1357,9 @@ class ChatWidget(QWidget):
                 files=entry.files,
                 on_tts=_tts_cb if entry.role == "assistant" else None,
             )
-            self.messages_layout.addWidget(widget)
+            self._add_message_widget(widget)
 
+        self._dump_layout_state("rebuild_done")
         self._scroll_to_bottom()
 
     def _show_welcome(self) -> None:
@@ -1310,7 +1376,7 @@ class ChatWidget(QWidget):
             f"Escribe un mensaje o usa los botones de la barra lateral para comenzar"
             f"</div>"
         )
-        self.messages_layout.addWidget(self.welcome_label)
+        self._add_message_widget(self.welcome_label)
         self.messages_layout.setAlignment(self.welcome_label, Qt.AlignmentFlag.AlignCenter)
 
     def clear_chat(self) -> None:

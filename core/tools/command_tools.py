@@ -49,7 +49,7 @@ class ExecuteCommandTool(BaseTool):
                 },
                 "user_confirmed": {
                     "type": "boolean",
-                    "description": "Set to True only if the user explicitly commanded the use of sudo for this action.",
+                    "description": "Set to True only if the user explicitly commanded the use of sudo for this action.",  # noqa: E501
                     "default": False,
                 },
             },

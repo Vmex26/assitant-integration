@@ -43,6 +43,14 @@
       - web_search: Realiza búsquedas web.
       - download_file: Descarga archivos de URLs.
 
+    Búsqueda e instalación de software:
+      - search_package: Busca paquetes en pacman, AUR y flatpak.
+      - show_pkgbuild: Muestra el PKGBUILD de paquetes AUR
+        (obligatorio antes de sugerir instalar desde AUR).
+      - SoftwareAssistantTool: Busca alternativas Linux a apps
+        Windows/macOS y guía al usuario en la instalación por
+        lenguaje natural.
+
     Características del sistema de herramientas:
       - Arquitectura extensible: heredar de BaseTool y registrar.
       - Tool Registry centralizado.
@@ -67,7 +75,11 @@
     - Input con soporte de Enter para enviar, Shift+Enter para
       nueva línea.
     - Barra de archivos adjuntos con vista previa.
+    - Botón Stop para cancelar generación a medio responder.
+    - Indicador "Assistant is thinking..." durante procesamiento.
+    - Botón de grabación de voz para entrada por micrófono.
     - Scroll automático al final del chat.
+    - Atajo Ctrl+L para limpiar el chat.
 
 
 4.  SOPORTE MULTIMODAL (Archivos e Imágenes)
@@ -86,15 +98,16 @@
     - Múltiples conversaciones simultáneas con pestañas en sidebar.
     - Historial de mensajes con metadatos (timestamp, tokens).
     - Sistema de mensajes (user, assistant, system, tool).
+    - Renombrar y eliminar conversaciones desde la sidebar (click derecho).
+    - Título automático basado en el primer mensaje.
     - Límite configurable de historial (max_history).
-    - Persistencia: guardar/cargar conversaciones en JSON.
     - System prompt personalizable.
 
 
 6.  CONFIGURACIÓN
     --------------------------------------------------
     - Ventana de configuración con pestañas (Providers, Tools,
-      Appearance).
+      Appearance, Speech).
     - Configuración de API Keys con campo password oculto.
     - Selector de modelo por proveedor.
     - Control deslizante de temperatura.
@@ -102,6 +115,8 @@
     - Activación/desactivación individual de herramientas.
     - Selector de tema (dark/light).
     - Ajuste de tamaño de fuente.
+    - Selector de idioma (Español / English).
+    - Modo debug (logging verbose en consola).
     - Persistencia en ~/.ai_assistant/config.json.
     - Atajo de teclado Ctrl+, para abrir configuración.
 
@@ -138,13 +153,28 @@
     --------------------------------------------------
     - File: New Conversation (Ctrl+N), Save (Ctrl+S), Exit (Ctrl+Q).
     - Edit: Settings (Ctrl+,), Clear Chat (Ctrl+L).
-    - Model: Switch entre OpenAI, Anthropic, Ollama, Gemini.
+    - Model: Switch entre OpenAI, Anthropic, Ollama, Gemini,
+      OpenAI-Compatible.
     - Help: About dialog.
 
 
-10. ARQUITECTURA DEL CÓDIGO
+10. AUDIO Y VOZ (Voice Call Mode)
     --------------------------------------------------
-    Lenguaje: Python 3.10+
+    - Grabación de voz con sounddevice a 16 kHz.
+    - Detección de silencio para parada automática de grabación.
+    - Transcripción local con faster-whisper (modelos tiny a large-v3,
+      lazy-load en primer uso).
+    - Síntesis de voz con edge-tts (voces naturales Microsoft).
+    - Modo llamada: bucle continuo record → transcribe → AI responde →
+      TTS → record.
+    - Configuración de modelo Whisper, device (CPU/CUDA/Auto) y compute
+      type desde Settings → Speech.
+    - Reproducción de audio no-bloqueante con sounddevice.
+
+
+11. ARQUITECTURA DEL CÓDIGO
+    --------------------------------------------------
+    Lenguaje: Python 3.11+
     GUI: PyQt6
     Async: asyncio para operaciones de red/herramientas
 
@@ -155,23 +185,35 @@
         model_manager.py         - Factory y registro de proveedores
         conversation.py          - Gestión de historial de chat
         storage.py               - Persistencia SQLite de conversaciones
+        audio.py                 - Grabación (sounddevice), transcripción
+                                   (faster-whisper), TTS (edge-tts)
+        logger.py                - Logging centralizado (INFO/DEBUG/ERROR)
         providers/
           base.py                - Clase abstracta BaseProvider
           openai_provider.py     - Implementación OpenAI
           anthropic_provider.py  - Implementación Anthropic
           ollama_provider.py     - Implementación Ollama
           gemini_provider.py     - Implementación Google Gemini
+          openai_compatible_provider.py  - Proveedores compatibles
+                                           con API de OpenAI
         tools/
           base.py                - Clase abstracta BaseTool + ToolRegistry
-          file_tools.py          - Herramientas de sistema de archivos
-          command_tools.py       - Herramientas de ejecución de comandos
-          search_tools.py        - Herramientas de búsqueda en código
-          web_tools.py           - Herramientas web
+          file_tools.py          - read_file, write_file, list_directory
+          command_tools.py       - execute_command, execute_python
+          search_tools.py        - glob_search, content_search
+          web_tools.py           - web_fetch, web_search, download_file
+          package_tools.py       - search_package, show_pkgbuild
+          software_assistant.py  - Buscador de software por lenguaje
+                                   natural
       gui/
         main_window.py           - Ventana principal con menús
-        chat_widget.py           - Widget de chat con input y mensajes
+        chat_widget.py           - Chat con streaming, input, scroll,
+                                   modo llamada, barra de attachments
         message_widget.py        - Burbujas de mensaje con Markdown
-        settings_dialog.py       - Diálogo de configuración
+        settings_dialog.py       - Diálogo de configuración multi-pestaña
+        log_dialog.py            - Visor de logs en vivo
+        service_dialog.py        - Gestión de servicios systemd
+        system_panel.py          - Monitor de sistema (CPU, RAM, disk)
       utils/
         helpers.py               - Funciones auxiliares
 
@@ -183,35 +225,44 @@
       - Manejo de errores en todas las operaciones.
 
 
-11. REQUISITOS DEL SISTEMA
+12. REQUISITOS DEL SISTEMA
     --------------------------------------------------
-    - Python 3.10 o superior.
+    - Python 3.11 o superior.
     - PyQt6 (interfaz gráfica).
     - openai (API OpenAI).
     - anthropic (API Anthropic).
     - google-genai (API Google Gemini).
+    - ollama (modelos locales, opcional).
     - httpx (cliente HTTP).
     - Pillow (procesamiento de imágenes).
     - markdown (procesamiento de texto, opcional).
     - pygments (resaltado de sintaxis, opcional).
+    - sounddevice + soundfile (grabación de audio).
+    - faster-whisper (transcripción local por IA).
+    - edge-tts (síntesis de voz).
+    - psutil (monitor de sistema).
+    - numpy (dependencia de audio/whisper).
 
     Instalación:
       pip install -r requirements.txt
       python main.py
 
 
-12. PROVEEDORES REQUIEREN:
+13. PROVEEDORES REQUIEREN:
     --------------------------------------------------
     - OpenAI: API Key de https://platform.openai.com
     - Anthropic: API Key de https://console.anthropic.com
     - Ollama: Instalación local de Ollama (https://ollama.ai)
               con modelos descargados.
     - Gemini: API Key de https://aistudio.google.com/apikey
+    - OpenAI-Compatible: API Key + Base URL de servicios como
+              DeepSeek, Groq, Together, o cualquier API compatible
+              con OpenAI.
 
 
 ================================================================================
   FUNCIONALIDADES FUTURAS (PLANIFICADAS)
-================================================================================
+===============================================================================
 - Soporte de modelos locales via llama.cpp / GPT4All.
 - Búsqueda y reemplazo en archivos.
 - Control de versiones (Git integration).
@@ -220,6 +271,6 @@
 - Modo oscuro/claro automático según sistema.
 - Comandos slash (/help, /clear, /model).
 - Plugins de terceros (carga dinámica).
-- Historial de conversaciones persistente en base de datos.
+- Panel de debug toggle (ROADMAP Fase 3).
 - Asistente de configuración inicial (wizard).
 ================================================================================

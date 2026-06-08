@@ -4,8 +4,8 @@ import os
 import typing
 from pathlib import Path
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QKeySequence
+from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QAction, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QInputDialog,
@@ -43,6 +43,21 @@ from .settings_dialog import SettingsDialog  # noqa: E402
 from .system_panel import SystemHealthPanel  # noqa: E402
 
 
+class GlobalHotkeyListener(QObject):
+    """QShortcut-based hotkey listener. Requires app focus."""
+
+    triggered = pyqtSignal()
+    SHORTCUT = "Ctrl+Shift+Space"
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self._shortcut = QShortcut(QKeySequence(self.SHORTCUT), parent)
+        self._shortcut.activated.connect(self.triggered)
+
+    def cleanup(self) -> None:
+        pass
+
+
 class MainWindow(QMainWindow):
     """Main application window."""
 
@@ -60,11 +75,16 @@ class MainWindow(QMainWindow):
 
         self._new_conversation()
 
+        # Global hotkey for voice call mode (key 199)
+        self._hotkey_listener = GlobalHotkeyListener(self)
+        self._hotkey_listener.triggered.connect(self._on_call_hotkey)
+
     @typing.override
     def closeEvent(self, event):
         """Clean up background threads on close."""
         self.chat_widget.cleanup()
         self.system_health.cleanup()
+        self._hotkey_listener.cleanup()
         super().closeEvent(event)
 
     def _init_tools(self) -> None:
@@ -450,6 +470,18 @@ class MainWindow(QMainWindow):
         self.chat_widget.load_conversation(conv)
         self._update_model_indicator()
 
+    def _on_call_hotkey(self) -> None:
+        """Handle global hotkey press: new conversation + start call mode."""
+        self._new_conversation()
+        QTimer.singleShot(100, self._delayed_start_call)
+
+    def _delayed_start_call(self) -> None:
+        """Start call mode after conversation is loaded."""
+        try:
+            self.chat_widget._start_call()
+        except RuntimeError:
+            pass
+
     def _on_conversation_selected(
         self, current: QListWidgetItem | None, previous: QListWidgetItem | None
     ) -> None:
@@ -728,20 +760,20 @@ class MainWindow(QMainWindow):
             "You can fetch web content and search the web with web_fetch / web_search. "
             "Download files with download_file.\n\n"
             "## Background Processes & GUI Applications\n"
-            "When executing commands that launch GUI applications (like 'firefox') or background processes where "
-            "you do not need any output from the process, you MUST use the following exact pattern to ensure "
+            "When executing commands that launch GUI applications (like 'firefox') or background processes where "  # noqa: E501
+            "you do not need any output from the process, you MUST use the following exact pattern to ensure "  # noqa: E501
             "it is fully detached and does not hang the assistant:\n"
             "`command > /dev/null 2>&1 & disown`\n"
-            "- The entire segment `> /dev/null 2>&1` is REQUIRED to redirect stdout and stderr to null, "
+            "- The entire segment `> /dev/null 2>&1` is REQUIRED to redirect stdout and stderr to null, "  # noqa: E501
             "preventing the process from trying to write to the assistant's buffers.\n"
             "- The `&` is required to run it in the background.\n"
             "- The `disown` is required to detach it from the assistant's process table.\n"
             "NEVER omit the redirection part.\n\n"
             "## Sudo / Root Access\n"
             "You CAN use sudo. However, you must follow these rules for security:\n"
-            "- If the user EXPLICITLY asks to run a command with sudo, you may invoke the tool with `user_confirmed: True`.\n"
+            "- If the user EXPLICITLY asks to run a command with sudo, you may invoke the tool with `user_confirmed: True`.\n"  # noqa: E501
             "- If you infer that sudo is needed but the user has not explicitly requested it, "
-            "you MUST explain why you need it, ask for confirmation, and invoke the tool with `user_confirmed: False` (or omit the parameter).\n"
+            "you MUST explain why you need it, ask for confirmation, and invoke the tool with `user_confirmed: False` (or omit the parameter).\n"  # noqa: E501
             "The graphical sudo password dialog will ALWAYS appear as a final safety layer.\n\n"
             "You can access user files with the available tools, but always inform the user "
             "before writing or modifying any file, even without sudo.\n\n"

@@ -48,5 +48,10 @@
 - [x] Bucle asyncio: speak → listen → transcribe (faster-whisper) → AI respond → TTS → loop
 - [x] `asyncio.Event()` → `threading.Event` + poll con `asyncio.sleep(0.1)`
 - [x] `sd.play()` no-bloqueante + `is_playing` poll en TTSEngine (sin `done_callback`)
-- [x] Sin beeps ni estados de recording en call loop
+- [x] Beep de inicio y estado "Listening..." durante grabación en call loop
 - [x] Simplificado respecto a versión revertida (sin `done_callback` complejo)
+
+## Fase 6 — Workflow: Lint, typecheck, test, pre-commit
+- [x] ruff + basedpyright (linting + type checking)
+- [x] pytest (84 tests: config, conversation, storage, helpers, logger, providers/base, tools/base, markdown)
+- [x] pre-commit hooks: ruff lint, ruff format, basedpyright, pytest, trailing-whitespace, end-of-file-fixer, check-yaml, check-json, check-added-large-files, no-commit-to-branch

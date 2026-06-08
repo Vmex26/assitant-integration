@@ -1,6 +1,8 @@
 from typing import Any
+
 from .base import BaseTool
 from .web_tools import WebSearchTool
+
 
 class SoftwareAssistantTool(BaseTool):
     """Unified assistant to find and recommend Linux software."""
@@ -23,10 +25,10 @@ class SoftwareAssistantTool(BaseTool):
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "The software search query or application name to find alternatives for."
+                    "description": "The software search query or application name to find alternatives for.",  # noqa: E501
                 }
             },
-            "required": ["query"]
+            "required": ["query"],
         }
 
     async def execute(self, query: str) -> str:
@@ -34,7 +36,7 @@ class SoftwareAssistantTool(BaseTool):
         # Optimize query for software comparisons
         search_query = f"best Linux alternatives for {query} comparison 2026"
         results = await search_tool.execute(query=search_query, num_results=3)
-        
+
         return (
             f"Here are the top recommendations for '{query}' found online:\n\n"
             f"{results}\n\n"
