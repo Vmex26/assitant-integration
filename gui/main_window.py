@@ -31,8 +31,7 @@ from core.tools.command_tools import ExecuteCommandTool, ExecutePythonTool
 from core.tools.file_tools import ListDirectoryTool, ReadFileTool, WriteFileTool
 from core.tools.package_tools import SearchPackageTool, ShowPKGBUILDTool
 from core.tools.search_tools import ContentSearchTool, GlobSearchTool
-from core.tools.translator_tools import AppTranslatorTool
-from core.tools.software_finder import SoftwareFinderTool
+from core.tools.software_assistant import SoftwareAssistantTool
 from core.tools.web_tools import DownloadFileTool, WebFetchTool, WebSearchTool
 
 from .chat_widget import ChatWidget
@@ -83,8 +82,7 @@ class MainWindow(QMainWindow):
             DownloadFileTool,
             SearchPackageTool,
             ShowPKGBUILDTool,
-            AppTranslatorTool,
-            SoftwareFinderTool,
+            SoftwareAssistantTool,
         ]:
             self.tool_registry.register(tool_cls())
 
